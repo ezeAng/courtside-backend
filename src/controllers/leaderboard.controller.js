@@ -3,7 +3,7 @@ import * as leaderboardService from "../services/leaderboard.service.js";
 export const getLeaderboard = async (req, res) => {
   try {
     const { gender } = req.params;
-    const result = await leaderboardService.getLeaderboardByGender(gender);
+    const result = await leaderboardService.getLeaderboard(gender);
 
     if (result.error) {
       return res.status(400).json(result);

@@ -1,13 +1,13 @@
 import { supabase } from "../config/supabase.js";
 
-export const getLeaderboardByGender = async (gender) => {
+export const getLeaderboard = async (gender) => {
   if (!gender || (gender !== "male" && gender !== "female")) {
     return { error: "Invalid gender" };
   }
 
   const { data, error } = await supabase
     .from("users")
-    .select("user_id, username, elo")
+    .select("user_id, username, gender, elo")
     .eq("gender", gender)
     .order("elo", { ascending: false })
     .limit(100);

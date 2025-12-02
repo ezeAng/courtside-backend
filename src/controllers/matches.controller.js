@@ -24,7 +24,7 @@ export const createMatch = async (req, res) => {
 export const getMatchesForUser = async (req, res) => {
   try {
     const { user_id } = req.params;
-    const result = await matchesService.listMatchesForUser(user_id);
+    const result = await matchesService.getMatchesForUser(user_id);
 
     if (result?.error) {
       return res.status(400).json(result);
