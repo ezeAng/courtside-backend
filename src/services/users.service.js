@@ -26,3 +26,28 @@ export const updateProfile = async (auth_id, updates) => {
 
   return data;
 };
+
+// ---------------- SEARCH USERS ----------------
+export const searchUsers = async (query, gender) => {
+  if (!query || query.length < 1) {
+    return [];
+  }
+
+  let supabaseQuery = supabase
+    .from("users")
+    .select("user_id, username, gender, elo")
+    .ilike("username", `%${query}%`)
+    .order("elo", { ascending: false });
+
+  if (gender) {
+    supabaseQuery = supabaseQuery.eq("gender", gender);
+  }
+
+  const { data, error } = await supabaseQuery;
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+};
