@@ -4,7 +4,7 @@ import { supabase } from "../config/supabase.js";
 export const getProfile = async (auth_id) => {
   const { data, error } = await supabase
     .from("users")
-    .select("*")
+    .select("user_id, username, gender, elo")
     .eq("auth_id", auth_id)
     .single();
 

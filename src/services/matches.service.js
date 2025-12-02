@@ -2,28 +2,50 @@ import { supabase } from "../config/supabase.js";
 import { parseScore } from "./scoreParser.service.js";
 import { resolveMatchElo } from "./elo.service.js";
 
+const buildPlayers = (players, userMap) => {
+  return players.reduce(
+    (acc, player) => {
+      const user = userMap.get(player.user_id) || {};
+
+      const formattedPlayer = {
+        user_id: player.user_id,
+        username: user.username || null,
+        gender: user.gender || null,
+        elo: user.elo ?? null,
+      };
+
+      if (player.team === "A") {
+        acc.team_A.push(formattedPlayer);
+      } else if (player.team === "B") {
+        acc.team_B.push(formattedPlayer);
+      }
+
+      return acc;
+    },
+    { team_A: [], team_B: [] }
+  );
+};
+
+const determineWinnerTeam = (players) => {
+  const winnerPlayer = players.find((p) => p.is_winner);
+  return winnerPlayer ? winnerPlayer.team : null;
+};
+
 const buildMatchResponse = (match, players, userMap) => {
-  const playersWithUser = players.map((p) => ({
-    ...p,
-    user: userMap.get(p.user_id) || null,
-  }));
-
-  const team_A_players = playersWithUser.filter((p) => p.team === "A");
-  const team_B_players = playersWithUser.filter((p) => p.team === "B");
-  const winnerPlayer = playersWithUser.find((p) => p.is_winner);
-
   return {
-    ...match,
-    team_A_players,
-    team_B_players,
-    winner_team: winnerPlayer ? winnerPlayer.team : null,
+    match_id: match.match_id,
+    match_type: match.match_type,
+    score: match.score,
+    winner_team: determineWinnerTeam(players),
+    played_at: match.played_at,
+    players: buildPlayers(players, userMap),
   };
 };
 
 const fetchPlayersWithUsers = async (matchIds) => {
   const { data: matchPlayersData, error: playersError } = await supabase
     .from("match_players")
-    .select("*")
+    .select("match_id, user_id, team, is_winner")
     .in("match_id", matchIds);
 
   if (playersError) {
@@ -141,10 +163,7 @@ export const createMatch = async (
       winner_team: resolvedWinner,
       score,
       match_status: match.match_status,
-      players: {
-        A: responseMatch.team_A_players,
-        B: responseMatch.team_B_players,
-      },
+      players: responseMatch.players,
       elo_updates,
     };
   } catch (err) {
@@ -152,7 +171,7 @@ export const createMatch = async (
   }
 };
 
-export const listMatchesForUser = async (user_id) => {
+export const getMatchesForUser = async (user_id) => {
   const { data: playerMatches, error: lookupError } = await supabase
     .from("match_players")
     .select("match_id")
@@ -160,14 +179,16 @@ export const listMatchesForUser = async (user_id) => {
 
   if (lookupError) return { error: lookupError.message };
 
-  if (!playerMatches || playerMatches.length === 0) return [];
+  if (!playerMatches || playerMatches.length === 0)
+    return { user_id, matches: [] };
 
   const matchIds = [...new Set(playerMatches.map((entry) => entry.match_id))];
 
   const { data: matches, error: matchesError } = await supabase
     .from("matches")
     .select("*")
-    .in("match_id", matchIds);
+    .in("match_id", matchIds)
+    .order("played_at", { ascending: false });
 
   if (matchesError) return { error: matchesError.message };
 
@@ -175,10 +196,12 @@ export const listMatchesForUser = async (user_id) => {
 
   if (error) return { error };
 
-  return matches.map((match) => {
+  const formattedMatches = matches.map((match) => {
     const players = matchPlayers.filter((p) => p.match_id === match.match_id);
     return buildMatchResponse(match, players, userMap);
   });
+
+  return { user_id, matches: formattedMatches };
 };
 
 export const getMatchById = async (match_id) => {
