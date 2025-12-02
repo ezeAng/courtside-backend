@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { supabase } from "./config/supabase.js";
 import authRoutes from "./routes/auth.route.js";
 import userRoutes from "./routes/users.route.js";
+import matchRoutes from "./routes/matches.route.js";
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/matches", matchRoutes);
 
 
 const port = process.env.PORT || 4000;
