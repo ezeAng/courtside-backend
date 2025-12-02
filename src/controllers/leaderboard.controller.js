@@ -1,0 +1,16 @@
+import * as leaderboardService from "../services/leaderboard.service.js";
+
+export const getLeaderboard = async (req, res) => {
+  try {
+    const { gender } = req.params;
+    const result = await leaderboardService.getLeaderboardByGender(gender);
+
+    if (result.error) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
