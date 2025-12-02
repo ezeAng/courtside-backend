@@ -11,6 +11,17 @@ export const getMyProfile = async (req, res) => {
   }
 };
 
+export const searchUsers = async (req, res) => {
+  try {
+    const { query, gender } = req.query;
+    const results = await userService.searchUsers(query, gender);
+
+    return res.status(200).json({ results });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 export const updateMyProfile = async (req, res) => {
   try {
     const auth_id = req.authUser.id;
