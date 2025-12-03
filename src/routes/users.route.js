@@ -9,7 +9,7 @@ import {
 const router = Router();
 
 router.get("/me", requireAuth, getMyProfile);
-router.put("/me", requireAuth, updateMyProfile);
+router.put("/update", requireAuth, updateMyProfile);
 router.get("/search", searchUsers);
 
 export default router;
