@@ -4,7 +4,7 @@ import { supabase } from "../config/supabase.js";
 export const getProfile = async (auth_id) => {
   const { data, error } = await supabase
     .from("users")
-    .select("user_id, username, gender, elo")
+    .select("user_id, username, gender, avatar, elo")
     .eq("auth_id", auth_id)
     .single();
 
@@ -15,11 +15,42 @@ export const getProfile = async (auth_id) => {
 
 // ---------------- UPDATE PROFILE ----------------
 export const updateProfile = async (auth_id, updates) => {
+  return updateUserService(auth_id, updates);
+};
+
+// ---------------- UPDATE USER ----------------
+export const updateUserService = async (userId, updates) => {
+  const allowedFields = ["username", "gender", "avatar"];
+
+  const filteredUpdates = Object.entries(updates || {}).reduce(
+    (acc, [key, value]) => {
+      if (allowedFields.includes(key) && value !== undefined) {
+        acc[key] = value;
+      }
+      return acc;
+    },
+    {}
+  );
+
+  if (Object.keys(filteredUpdates).length === 0) {
+    return { error: "No valid fields provided for update" };
+  }
+
+  if (filteredUpdates.avatar !== undefined) {
+    const avatarNumber = Number(filteredUpdates.avatar);
+
+    if (!Number.isInteger(avatarNumber) || avatarNumber < 0 || avatarNumber > 9) {
+      return { error: "Avatar must be an integer between 0 and 9" };
+    }
+
+    filteredUpdates.avatar = avatarNumber;
+  }
+
   const { data, error } = await supabase
     .from("users")
-    .update(updates)
-    .eq("auth_id", auth_id)
-    .select()
+    .update(filteredUpdates)
+    .eq("auth_id", userId)
+    .select("user_id, username, gender, avatar, elo")
     .single();
 
   if (error) return { error: error.message };
