@@ -12,12 +12,20 @@ import {
 
 const router = Router();
 
-router.post("/matches/create", requireAuth, createMatch);
-router.get("/matches/user/:user_id", getMatchesForUser);
-router.get("/matches/:match_id", getMatchById);
-router.delete("/matches/:match_id", requireAuth, deleteMatch);
-router.get("/matches/pending", requireAuth, getPendingMatches);
-router.post("/matches/:matchId/confirm", requireAuth, confirmMatch);
-router.post("/matches/:matchId/reject", requireAuth, rejectMatch);
+// CREATE
+router.post("/create", requireAuth, createMatch);
+
+// READ (specific → generic)
+router.get("/pending", requireAuth, getPendingMatches);
+router.get("/user/:user_id", getMatchesForUser);
+router.get("/:match_id", getMatchById);   // <-- generic, placed LAST among GET routes
+
+// CONFIRM / REJECT (POST)
+router.post("/:matchId/confirm", requireAuth, confirmMatch);
+router.post("/:matchId/reject", requireAuth, rejectMatch);
+
+// DELETE
+router.delete("/:match_id", requireAuth, deleteMatch);
+
 
 export default router;

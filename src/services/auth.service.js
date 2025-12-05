@@ -34,7 +34,7 @@ const resolveEmailForIdentifier = async (identifier) => {
 export const signup = async (email, username, password, gender) => {
   const normalizedEmail = normalizeIdentifier(email);
   const normalizedUsername = normalizeIdentifier(username);
-
+  
   if (!normalizedEmail || !normalizedUsername || !password) {
     return { error: "Email, username, and password are required" };
   }
@@ -44,7 +44,7 @@ export const signup = async (email, username, password, gender) => {
     .select("username")
     .eq("username", normalizedUsername)
     .maybeSingle();
-
+  
   if (usernameError && usernameError.code !== "PGRST116") {
     return { error: usernameError.message };
   }
@@ -62,6 +62,7 @@ export const signup = async (email, username, password, gender) => {
     });
 
   if (authError) {
+    console.log(authError)
     if (authError.message?.toLowerCase().includes("user not allowed")) {
       return {
         error:

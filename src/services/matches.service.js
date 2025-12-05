@@ -286,11 +286,12 @@ export const deleteMatch = async (match_id, requesterId) => {
 };
 
 export const getPendingMatches = async (userId) => {
+
   const { data: incoming, error: err1 } = await supabase
     .from("matches")
     .select("*")
     .eq("status", "pending")
-    .contains("needs_confirmation_from_list", [userId])
+    .contains("needs_confirmation_from_list", JSON.stringify([userId]))
     .order("created_at", { ascending: false });
 
   if (err1) throw buildError(err1.message, 400);
@@ -302,8 +303,11 @@ export const getPendingMatches = async (userId) => {
     .eq("submitted_by", userId)
     .order("created_at", { ascending: false });
 
-  if (err2) throw buildError(err2.message, 400);
-
+  if (err2) {
+    console.log(err2)
+    throw buildError(err2.message, 400);
+  }
+  
   return { incoming, outgoing };
 };
 
