@@ -3,7 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import authRoutes from "./routes/auth.route.js";
 import userRoutes from "./routes/users.route.js";
-import matchRoutes from "./routes/matches.route.js";
+import matchRoutes from "./routes/matches.routes.js";
 import leaderboardRoutes from "./routes/leaderboard.route.js";
 
 const app = express();
@@ -20,7 +20,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api/matches", matchRoutes);
+app.use("/api", matchRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 
 

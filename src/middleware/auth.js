@@ -13,6 +13,7 @@ export const requireAuth = async (req, res, next) => {
     }
 
     req.authUser = data.user; // contains auth_id
+    req.user = data.user;
     next();
   } catch (err) {
     res.status(500).json({ error: err.message });
