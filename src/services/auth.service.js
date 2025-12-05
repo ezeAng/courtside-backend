@@ -1,4 +1,4 @@
-import { supabase } from "../config/supabase.js";
+import { supabase, supabaseAuth } from "../config/supabase.js";
 
 // ---------------- SIGNUP ----------------
 export const signup = async (email, password, username, gender) => {
@@ -25,7 +25,16 @@ export const signup = async (email, password, username, gender) => {
       user_metadata: { username, gender },
     });
 
-  if (authError) return { error: authError.message };
+  if (authError) {
+    if (authError.message?.toLowerCase().includes("user not allowed")) {
+      return {
+        error:
+          "Signup requires the Supabase service role key. Verify SUPABASE_SERVICE_ROLE_KEY is configured on the server.",
+      };
+    }
+
+    return { error: authError.message };
+  }
 
   const auth_id = authUser.user?.id;
 
@@ -52,7 +61,7 @@ export const signup = async (email, password, username, gender) => {
 
 // ---------------- LOGIN ----------------
 export const login = async (email, password) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabaseAuth.auth.signInWithPassword({
     email,
     password,
   });
