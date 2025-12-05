@@ -4,7 +4,7 @@ import { supabase } from "../config/supabase.js";
 export const getProfile = async (auth_id) => {
   const { data, error } = await supabase
     .from("users")
-    .select("user_id, username, gender, avatar, elo")
+    .select("auth_id, username, gender, avatar, elo")
     .eq("auth_id", auth_id)
     .single();
 
@@ -19,7 +19,7 @@ export const updateProfile = async (auth_id, updates) => {
 };
 
 // ---------------- UPDATE USER ----------------
-export const updateUserService = async (userId, updates) => {
+export const updateUserService = async (authId, updates) => {
   const allowedFields = ["username", "gender", "avatar"];
 
   const filteredUpdates = Object.entries(updates || {}).reduce(
@@ -49,8 +49,8 @@ export const updateUserService = async (userId, updates) => {
   const { data, error } = await supabase
     .from("users")
     .update(filteredUpdates)
-    .eq("auth_id", userId)
-    .select("user_id, username, gender, avatar, elo")
+    .eq("auth_id", authId)
+    .select("auth_id, username, gender, avatar, elo")
     .single();
 
   if (error) return { error: error.message };
@@ -66,7 +66,7 @@ export const searchUsers = async (query, gender) => {
 
   let supabaseQuery = supabase
     .from("users")
-    .select("user_id, username, gender, elo")
+    .select("auth_id, username, gender, elo")
     .ilike("username", `%${query}%`)
     .order("elo", { ascending: false });
 
@@ -87,7 +87,7 @@ export const searchUsers = async (query, gender) => {
 export const listOtherUsers = async (auth_id) => {
   const { data, error } = await supabase
     .from("users")
-    .select("user_id, username, gender, elo")
+    .select("auth_id, username, gender, elo")
     .neq("auth_id", auth_id)
     .order("elo", { ascending: false });
 
