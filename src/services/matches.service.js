@@ -121,6 +121,8 @@ export const createMatch = async (
     const parsedScore = parseScore(score);
     const resolvedWinner = winner_team || parsedScore.winner_team;
 
+    const playedAtTimestamp = played_at ?? new Date().toISOString();
+
     if (winner_team && winner_team !== parsedScore.winner_team) {
       return { error: "Provided winner does not match parsed score" };
     }
@@ -139,7 +141,7 @@ export const createMatch = async (
         {
           match_type,
           score,
-          played_at,
+          played_at: playedAtTimestamp,
           created_by,
           submitted_by: created_by,
           status: "pending",
