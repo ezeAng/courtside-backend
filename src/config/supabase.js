@@ -13,7 +13,27 @@ if (!supabaseServiceRoleKey) {
   throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-export const supabaseAuth = supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : supabase;
+if (!supabaseAnonKey) {
+  throw new Error("SUPABASE_ANON_KEY is not configured");
+}
+
+const supabaseClientOptions = {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+};
+
+export const supabaseAdmin = createClient(
+  supabaseUrl,
+  supabaseServiceRoleKey,
+  supabaseClientOptions
+);
+
+export const supabaseClient = createClient(
+  supabaseUrl,
+  supabaseAnonKey,
+  supabaseClientOptions
+);
+
+export const supabase = supabaseAdmin;

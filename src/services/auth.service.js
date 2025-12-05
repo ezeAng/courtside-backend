@@ -1,32 +1,64 @@
-import { supabase, supabaseAuth } from "../config/supabase.js";
+import { supabaseAdmin, supabaseClient } from "../config/supabase.js";
 
-const buildSyntheticEmail = (username) => `${username}@signup.local`;
+const normalizeIdentifier = (value) => value?.trim().toLowerCase();
 
-// ---------------- SIGNUP ----------------
-export const signup = async (username, password, gender) => {
-  // Ensure the username is available before creating the auth user
-  const { data: existingUsername, error: usernameError } = await supabase
+const resolveEmailForIdentifier = async (identifier) => {
+  const normalized = normalizeIdentifier(identifier);
+
+  if (!normalized) {
+    return { error: "Email or username is required" };
+  }
+
+  if (normalized.includes("@")) {
+    return { email: normalized };
+  }
+
+  const { data, error } = await supabaseAdmin
     .from("users")
-    .select("username")
-    .eq("username", username)
+    .select("email")
+    .eq("username", normalized)
     .maybeSingle();
 
-  if (usernameError && usernameError.code !== "PGRST116")
+  if (error && error.code !== "PGRST116") {
+    return { error: error.message };
+  }
+
+  if (!data?.email) {
+    return { error: "Username not found" };
+  }
+
+  return { email: data.email };
+};
+
+// ---------------- SIGNUP ----------------
+export const signup = async (email, username, password, gender) => {
+  const normalizedEmail = normalizeIdentifier(email);
+  const normalizedUsername = normalizeIdentifier(username);
+
+  if (!normalizedEmail || !normalizedUsername || !password) {
+    return { error: "Email, username, and password are required" };
+  }
+
+  const { data: existingUsername, error: usernameError } = await supabaseAdmin
+    .from("users")
+    .select("username")
+    .eq("username", normalizedUsername)
+    .maybeSingle();
+
+  if (usernameError && usernameError.code !== "PGRST116") {
     return { error: usernameError.message };
+  }
 
   if (existingUsername) {
     return { error: "Username already taken" };
   }
 
-  const email = buildSyntheticEmail(username.toLowerCase());
-
-  // 1. Create Supabase Auth user without requiring email confirmation
   const { data: authUser, error: authError } =
-    await supabase.auth.admin.createUser({
-      email,
+    await supabaseAdmin.auth.admin.createUser({
+      email: normalizedEmail,
       password,
       email_confirm: true,
-      user_metadata: { username, gender },
+      user_metadata: { username: normalizedUsername, gender },
     });
 
   if (authError) {
@@ -42,13 +74,13 @@ export const signup = async (username, password, gender) => {
 
   const auth_id = authUser.user?.id;
 
-  // 2. Insert into your own "users" table
-  const { data: userRow, error: insertError } = await supabase
+  const { data: userRow, error: insertError } = await supabaseAdmin
     .from("users")
     .insert([
       {
         auth_id,
-        username,
+        email: normalizedEmail,
+        username: normalizedUsername,
         gender,
       },
     ])
@@ -64,11 +96,18 @@ export const signup = async (username, password, gender) => {
 };
 
 // ---------------- LOGIN ----------------
-export const login = async (username, password) => {
-  const email = buildSyntheticEmail(username.toLowerCase());
+export const login = async (identifier, password) => {
+  if (!password) {
+    return { error: "Password is required" };
+  }
 
-  const { data, error } = await supabaseAuth.auth.signInWithPassword({
-    email,
+  const resolvedEmail = await resolveEmailForIdentifier(identifier);
+  if (resolvedEmail.error) {
+    return { error: resolvedEmail.error };
+  }
+
+  const { data, error } = await supabaseClient.auth.signInWithPassword({
+    email: resolvedEmail.email,
     password,
   });
 
@@ -81,14 +120,19 @@ export const login = async (username, password) => {
 };
 
 export const checkUsername = async (username) => {
-  const { data, error } = await supabase
+  const normalizedUsername = normalizeIdentifier(username);
+
+  if (!normalizedUsername) {
+    return { error: "Username is required" };
+  }
+
+  const { data, error } = await supabaseAdmin
     .from("users")
     .select("username")
-    .eq("username", username)
+    .eq("username", normalizedUsername)
     .single();
 
   if (error && error.code === "PGRST116") {
-    // No rows found → available
     return { available: true };
   }
 
