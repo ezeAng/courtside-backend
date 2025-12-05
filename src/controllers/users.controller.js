@@ -22,6 +22,17 @@ export const searchUsers = async (req, res) => {
   }
 };
 
+export const listOtherUsers = async (req, res) => {
+  try {
+    const auth_id = req.authUser.id;
+    const results = await userService.listOtherUsers(auth_id);
+
+    return res.status(200).json({ results });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 export const updateMyProfile = async (req, res) => {
   try {
     const auth_id = req.authUser.id;
