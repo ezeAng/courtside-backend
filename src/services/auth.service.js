@@ -1,7 +1,9 @@
 import { supabase, supabaseAuth } from "../config/supabase.js";
 
+const buildSyntheticEmail = (username) => `${username}@signup.local`;
+
 // ---------------- SIGNUP ----------------
-export const signup = async (email, password, username, gender) => {
+export const signup = async (username, password, gender) => {
   // Ensure the username is available before creating the auth user
   const { data: existingUsername, error: usernameError } = await supabase
     .from("users")
@@ -15,6 +17,8 @@ export const signup = async (email, password, username, gender) => {
   if (existingUsername) {
     return { error: "Username already taken" };
   }
+
+  const email = buildSyntheticEmail(username.toLowerCase());
 
   // 1. Create Supabase Auth user without requiring email confirmation
   const { data: authUser, error: authError } =
@@ -60,7 +64,9 @@ export const signup = async (email, password, username, gender) => {
 };
 
 // ---------------- LOGIN ----------------
-export const login = async (email, password) => {
+export const login = async (username, password) => {
+  const email = buildSyntheticEmail(username.toLowerCase());
+
   const { data, error } = await supabaseAuth.auth.signInWithPassword({
     email,
     password,
