@@ -2,11 +2,27 @@ import { supabase } from "../config/supabase.js";
 
 // ---------------- SIGNUP ----------------
 export const signup = async (email, password, username, gender) => {
-  // 1. Create Supabase Auth user
+  // Ensure the username is available before creating the auth user
+  const { data: existingUsername, error: usernameError } = await supabase
+    .from("users")
+    .select("username")
+    .eq("username", username)
+    .maybeSingle();
+
+  if (usernameError && usernameError.code !== "PGRST116")
+    return { error: usernameError.message };
+
+  if (existingUsername) {
+    return { error: "Username already taken" };
+  }
+
+  // 1. Create Supabase Auth user without requiring email confirmation
   const { data: authUser, error: authError } =
-    await supabase.auth.signUp({
+    await supabase.auth.admin.createUser({
       email,
       password,
+      email_confirm: true,
+      user_metadata: { username, gender },
     });
 
   if (authError) return { error: authError.message };
