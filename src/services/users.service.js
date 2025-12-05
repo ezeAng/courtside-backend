@@ -82,3 +82,18 @@ export const searchUsers = async (query, gender) => {
 
   return data;
 };
+
+// ---------------- LIST OTHER USERS ----------------
+export const listOtherUsers = async (auth_id) => {
+  const { data, error } = await supabase
+    .from("users")
+    .select("user_id, username, gender, elo")
+    .neq("auth_id", auth_id)
+    .order("elo", { ascending: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+};
