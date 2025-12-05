@@ -4,7 +4,7 @@ export const createMatch = async (req, res) => {
   try {
     const { match_type, players_team_A, players_team_B, winner_team, score, played_at } =
       req.body;
-    const created_by = req.user?.id || req.authUser?.id;
+    const created_by = req.user?.auth_id || req.authUser?.auth_id;
 
     const result = await matchesService.createMatch(
       { match_type, players_team_A, players_team_B, winner_team, score, played_at },
@@ -23,8 +23,8 @@ export const createMatch = async (req, res) => {
 
 export const getMatchesForUser = async (req, res) => {
   try {
-    const { user_id } = req.params;
-    const result = await matchesService.getMatchesForUser(user_id);
+    const { auth_id } = req.params;
+    const result = await matchesService.getMatchesForUser(auth_id);
 
     if (result?.error) {
       return res.status(400).json(result);
@@ -55,7 +55,7 @@ export const getMatchById = async (req, res) => {
 export const deleteMatch = async (req, res) => {
   try {
     const { match_id } = req.params;
-    const requesterId = req.user?.id || req.authUser?.id;
+    const requesterId = req.user?.auth_id || req.authUser?.auth_id;
 
     const result = await matchesService.deleteMatch(match_id, requesterId);
 
@@ -72,7 +72,7 @@ export const deleteMatch = async (req, res) => {
 
 export const getPendingMatches = async (req, res) => {
   try {
-    const userId = req.user?.id || req.authUser?.id;
+    const userId = req.user?.auth_id || req.authUser?.auth_id;
     const result = await matchesService.getPendingMatches(userId);
     res.json(result);
   } catch (err) {
@@ -83,7 +83,7 @@ export const getPendingMatches = async (req, res) => {
 
 export const confirmMatch = async (req, res) => {
   try {
-    const userId = req.user?.id || req.authUser?.id;
+    const userId = req.user?.auth_id || req.authUser?.auth_id;
     const { matchId } = req.params;
     const result = await matchesService.confirmMatch(matchId, userId);
     res.json(result);
@@ -95,7 +95,7 @@ export const confirmMatch = async (req, res) => {
 
 export const rejectMatch = async (req, res) => {
   try {
-    const userId = req.user?.id || req.authUser?.id;
+    const userId = req.user?.auth_id || req.authUser?.auth_id;
     const { matchId } = req.params;
     const result = await matchesService.rejectMatch(matchId, userId);
     res.json(result);

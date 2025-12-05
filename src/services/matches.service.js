@@ -11,10 +11,10 @@ const buildError = (message, status = 400) => {
 const buildPlayers = (players, userMap) => {
   return players.reduce(
     (acc, player) => {
-      const user = userMap.get(player.user_id) || {};
+      const user = userMap.get(player.auth_id) || {};
 
       const formattedPlayer = {
-        user_id: player.user_id,
+        auth_id: player.auth_id,
         username: user.username || null,
         gender: user.gender || null,
         elo: user.elo ?? null,
@@ -51,7 +51,7 @@ const buildMatchResponse = (match, players, userMap) => {
 const fetchPlayersWithUsers = async (matchIds) => {
   const { data: matchPlayersData, error: playersError } = await supabase
     .from("match_players")
-    .select("match_id, user_id, team, is_winner")
+    .select("match_id, auth_id, team, is_winner")
     .in("match_id", matchIds);
 
   if (playersError) {
@@ -60,16 +60,16 @@ const fetchPlayersWithUsers = async (matchIds) => {
 
   const matchPlayers = matchPlayersData || [];
 
-  const userIds = [...new Set(matchPlayers.map((p) => p.user_id))];
+  const authIds = [...new Set(matchPlayers.map((p) => p.auth_id))];
 
-  if (userIds.length === 0) {
+  if (authIds.length === 0) {
     return { matchPlayers, userMap: new Map() };
   }
 
   const { data: usersData, error: usersError } = await supabase
     .from("users")
-    .select("user_id, username, gender, elo")
-    .in("user_id", userIds);
+    .select("auth_id, username, gender, elo")
+    .in("auth_id", authIds);
 
   if (usersError) {
     return { error: usersError.message };
@@ -77,7 +77,7 @@ const fetchPlayersWithUsers = async (matchIds) => {
 
   const users = usersData || [];
 
-  const userMap = new Map(users.map((u) => [u.user_id, u]));
+  const userMap = new Map(users.map((u) => [u.auth_id, u]));
 
   return { matchPlayers, userMap };
 };
@@ -153,19 +153,19 @@ export const createMatch = async (
 
     const playerRows = [];
 
-    players_team_A.forEach((user_id) => {
+    players_team_A.forEach((auth_id) => {
       playerRows.push({
         match_id: match.match_id,
-        user_id,
+        auth_id,
         team: "A",
         is_winner: resolvedWinner === "A",
       });
     });
 
-    players_team_B.forEach((user_id) => {
+    players_team_B.forEach((auth_id) => {
       playerRows.push({
         match_id: match.match_id,
-        user_id,
+        auth_id,
         team: "B",
         is_winner: resolvedWinner === "B",
       });
@@ -205,16 +205,16 @@ export const createMatch = async (
   }
 };
 
-export const getMatchesForUser = async (user_id) => {
+export const getMatchesForUser = async (auth_id) => {
   const { data: playerMatches, error: lookupError } = await supabase
     .from("match_players")
     .select("match_id")
-    .eq("user_id", user_id);
+    .eq("auth_id", auth_id);
 
   if (lookupError) return { error: lookupError.message };
 
   if (!playerMatches || playerMatches.length === 0)
-    return { user_id, matches: [] };
+    return { auth_id, matches: [] };
 
   const matchIds = [...new Set(playerMatches.map((entry) => entry.match_id))];
 
@@ -235,7 +235,7 @@ export const getMatchesForUser = async (user_id) => {
     return buildMatchResponse(match, players, userMap);
   });
 
-  return { user_id, matches: formattedMatches };
+  return { auth_id, matches: formattedMatches };
 };
 
 export const getMatchById = async (match_id) => {
@@ -312,15 +312,15 @@ export const getPendingMatches = async (userId) => {
 };
 
 const buildEloUpdates = (match, matchPlayers, players) => {
-  const playersTeamA = matchPlayers.filter((p) => p.team === "A").map((p) => p.user_id);
-  const playersTeamB = matchPlayers.filter((p) => p.team === "B").map((p) => p.user_id);
+  const playersTeamA = matchPlayers.filter((p) => p.team === "A").map((p) => p.auth_id);
+  const playersTeamB = matchPlayers.filter((p) => p.team === "B").map((p) => p.auth_id);
   const winner_team = determineWinnerTeam(matchPlayers);
 
   if (!winner_team) {
     throw buildError("Winner not determined for this match", 400);
   }
 
-  const eloMap = new Map(players.map((p) => [p.user_id, p.elo ?? 1000]));
+  const eloMap = new Map(players.map((p) => [p.auth_id, p.elo ?? 1000]));
   const getElo = (userId) => eloMap.get(userId) ?? 1000;
 
   let updates = [];
@@ -393,18 +393,18 @@ export const confirmMatch = async (matchId, userId) => {
 
   const { data: matchPlayers, error: playersError } = await supabase
     .from("match_players")
-    .select("user_id, team, is_winner")
+    .select("auth_id, team, is_winner")
     .eq("match_id", matchId);
 
   if (playersError) throw buildError(playersError.message, 400);
   if (!matchPlayers || matchPlayers.length === 0) throw buildError("Match players not found", 404);
 
-  const playerIds = matchPlayers.map((p) => p.user_id);
+  const playerIds = matchPlayers.map((p) => p.auth_id);
 
   const { data: players, error: usersError } = await supabase
     .from("users")
-    .select("user_id, elo")
-    .in("user_id", playerIds);
+    .select("auth_id, elo")
+    .in("auth_id", playerIds);
 
   if (usersError) throw buildError(usersError.message, 400);
 
@@ -414,7 +414,7 @@ export const confirmMatch = async (matchId, userId) => {
     const { error: updateErr } = await supabase
       .from("users")
       .update({ elo: update.newElo })
-      .eq("user_id", update.playerId);
+      .eq("auth_id", update.playerId);
 
     if (updateErr) throw buildError(updateErr.message, 400);
   }
