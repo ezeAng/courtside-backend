@@ -4,7 +4,7 @@ export const createMatch = async (req, res) => {
   try {
     const { match_type, players_team_A, players_team_B, winner_team, score, played_at } =
       req.body;
-    const created_by = req.authUser.id;
+    const created_by = req.user?.id || req.authUser?.id;
 
     const result = await matchesService.createMatch(
       { match_type, players_team_A, players_team_B, winner_team, score, played_at },
@@ -55,7 +55,7 @@ export const getMatchById = async (req, res) => {
 export const deleteMatch = async (req, res) => {
   try {
     const { match_id } = req.params;
-    const requesterId = req.authUser.id;
+    const requesterId = req.user?.id || req.authUser?.id;
 
     const result = await matchesService.deleteMatch(match_id, requesterId);
 
@@ -67,5 +67,40 @@ export const deleteMatch = async (req, res) => {
     res.status(200).json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+export const getPendingMatches = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.authUser?.id;
+    const result = await matchesService.getPendingMatches(userId);
+    res.json(result);
+  } catch (err) {
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
+  }
+};
+
+export const confirmMatch = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.authUser?.id;
+    const { matchId } = req.params;
+    const result = await matchesService.confirmMatch(matchId, userId);
+    res.json(result);
+  } catch (err) {
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
+  }
+};
+
+export const rejectMatch = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.authUser?.id;
+    const { matchId } = req.params;
+    const result = await matchesService.rejectMatch(matchId, userId);
+    res.json(result);
+  } catch (err) {
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
   }
 };
