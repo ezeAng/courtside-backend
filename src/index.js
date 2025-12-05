@@ -24,5 +24,6 @@ app.use("/api/matches", matchRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 
 
-const port = process.env.PORT || 4000;
-app.listen(port, () => console.log(`Courtside API running on port ${port}`));
+app.listen(process.env.PORT || 4000, "0.0.0.0", () => {
+  console.log("Server running on LAN");
+});
