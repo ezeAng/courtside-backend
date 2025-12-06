@@ -1,3 +1,4 @@
+import { supabase } from "../config/supabase.js";
 import * as matchesService from "../services/matches.service.js";
 
 export const createMatch = async (req, res) => {
@@ -104,5 +105,33 @@ export const rejectMatch = async (req, res) => {
   } catch (err) {
     const status = err.status || 500;
     res.status(status).json({ error: err.message });
+  }
+};
+
+export const getRecentMatches = async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("recent_matches_view").select("*").limit(20);
+
+    if (error) throw error;
+
+    return res.json({ success: true, matches: data });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+export const getH2HRecords = async (req, res) => {
+  try {
+    const user_id = req.user.auth_id;
+
+    const { data, error } = await supabase.rpc("get_h2h_records", {
+      user_auth_id: user_id,
+    });
+
+    if (error) throw error;
+
+    return res.json({ success: true, rivals: data });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
   }
 };
