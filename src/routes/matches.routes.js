@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import {
   createMatch,
-  getH2HRecords,
+  getH2HRivals,
   getMatchesForUser,
   getMatchById,
   deleteMatch,
@@ -20,7 +20,7 @@ router.post("/create", requireAuth, createMatch);
 // READ (specific → generic)
 router.get("/pending", requireAuth, getPendingMatches);
 router.get("/recent", requireAuth, getRecentMatches);
-router.get("/h2h", requireAuth, getH2HRecords);
+router.get("/h2h", requireAuth, getH2HRivals);
 router.get("/user/:auth_id", getMatchesForUser);
 router.get("/:match_id", getMatchById);   // <-- generic, placed LAST among GET routes
 
