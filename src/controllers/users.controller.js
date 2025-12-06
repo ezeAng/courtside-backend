@@ -53,6 +53,38 @@ export const updateMyProfile = async (req, res) => {
   }
 };
 
+export const updateProfile = async (req, res) => {
+  try {
+    const user_id = req.user.auth_id;
+
+    const { region, address, bio, profile_image_url } = req.body;
+
+    const { data, error } = await supabase
+      .from("users")
+      .update({
+        region,
+        address,
+        bio,
+        profile_image_url,
+      })
+      .eq("auth_id", user_id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      user: data,
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 export const getHomeStats = async (req, res) => {
   try {
     const user_id = req.user.auth_id;
