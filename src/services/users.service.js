@@ -4,7 +4,9 @@ import { supabase } from "../config/supabase.js";
 export const getProfile = async (auth_id) => {
   const { data, error } = await supabase
     .from("users")
-    .select("auth_id, username, gender, avatar, elo")
+    .select(
+      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, elo"
+    )
     .eq("auth_id", auth_id)
     .single();
 
@@ -50,7 +52,9 @@ export const updateUserService = async (authId, updates) => {
     .from("users")
     .update(filteredUpdates)
     .eq("auth_id", authId)
-    .select("auth_id, username, gender, avatar, elo")
+    .select(
+      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, elo"
+    )
     .single();
 
   if (error) return { error: error.message };
