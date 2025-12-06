@@ -120,11 +120,11 @@ export const getRecentMatches = async (req, res) => {
   }
 };
 
-export const getH2HRecords = async (req, res) => {
+export const getH2HRivals = async (req, res) => {
   try {
     const user_id = req.user.auth_id;
 
-    const { data, error } = await supabase.rpc("get_h2h_records", {
+    const { data, error } = await supabase.rpc("get_h2h_rivals", {
       user_auth_id: user_id,
     });
 
