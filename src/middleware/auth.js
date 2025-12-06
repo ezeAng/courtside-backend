@@ -18,7 +18,7 @@ export const requireAuth = async (req, res, next) => {
     };
 
     req.authUser = authUser;
-    req.user = authUser;
+    req.user = { ...authUser, auth_id: authUser.auth_id };
     next();
   } catch (err) {
     res.status(500).json({ error: err.message });

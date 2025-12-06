@@ -107,62 +107,57 @@ export const getCardData = async (req, res) => {
   try {
     const user_id = req.user.auth_id;
 
+    // Fetch user profile + elo
     const { data: user, error: userErr } = await supabase
       .from("users")
-      .select("username, gender, region, bio, profile_image_url, elo")
+      .select(
+        "username, gender, region, bio, profile_image_url, avatar, elo"
+      )
       .eq("auth_id", user_id)
       .single();
 
     if (userErr) throw userErr;
 
-    const { data: winRateData, error: winErr } = await supabase.rpc(
+    // Win rate from last 10 matches
+    const { data: winRate, error: winErr } = await supabase.rpc(
       "get_win_rate_last10",
       { user_auth_id: user_id }
     );
-
     if (winErr) throw winErr;
 
-    const { data: bestMatchData, error: bestErr } = await supabase.rpc(
+    // Best match (singles-only assumption)
+    const { data: bestMatch, error: bestErr } = await supabase.rpc(
       "get_best_match",
       { user_auth_id: user_id }
     );
-
     if (bestErr) throw bestErr;
 
-    const { count: totalMatches, error: countErr } = await supabase
-      .from("matches")
+    // Total matches played
+    const { count: totalMatches, error: totalErr } = await supabase
+      .from("match_players")
       .select("*", { count: "exact", head: true })
-      .or(`winner_id.eq.${user_id},loser_id.eq.${user_id}`);
+      .eq("auth_id", user_id);
+    if (totalErr) throw totalErr;
 
-    if (countErr) throw countErr;
+    // Matches this week
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
     const { count: weekMatches, error: weekErr } = await supabase
-      .from("matches")
+      .from("match_players")
       .select("*", { count: "exact", head: true })
-      .or(`winner_id.eq.${user_id},loser_id.eq.${user_id}`)
-      .gte(
-        "created_at",
-        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      );
-
+      .eq("auth_id", user_id)
+      .gte("created_at", oneWeekAgo);
     if (weekErr) throw weekErr;
 
+    // Tier calculation
     let tier = "Bronze";
-
     if (user.elo >= 900 && user.elo < 1100) tier = "Silver";
-    else if (user.elo >= 1100 && user.elo < 1300) tier = "Gold";
-    else if (user.elo >= 1300 && user.elo < 1500) tier = "Platinum";
-    else if (user.elo >= 1500) tier = "Diamond";
+    if (user.elo >= 1100 && user.elo < 1300) tier = "Gold";
+    if (user.elo >= 1300 && user.elo < 1500) tier = "Platinum";
+    if (user.elo >= 1500) tier = "Diamond";
 
-    const star_rating = Math.max(1, Math.min(5, Math.round(user.elo / 300)));
-
-    const best_match = Array.isArray(bestMatchData)
-      ? bestMatchData[0] || null
-      : bestMatchData;
-
-    const win_rate_last_10 = Array.isArray(winRateData)
-      ? winRateData[0] ?? 0
-      : winRateData ?? 0;
+    // Star rating (1–5)
+    let star_rating = Math.max(1, Math.min(5, Math.round(user.elo / 300)));
 
     return res.json({
       success: true,
@@ -172,11 +167,12 @@ export const getCardData = async (req, res) => {
         region: user.region,
         bio: user.bio,
         profile_image_url: user.profile_image_url,
+        avatar: user.avatar,
         elo: user.elo,
         tier,
         star_rating,
-        win_rate_last_10,
-        best_match,
+        win_rate_last_10: winRate ?? 0,
+        best_match: bestMatch && bestMatch.length > 0 ? bestMatch[0] : null,
         total_matches: totalMatches || 0,
         matches_this_week: weekMatches || 0,
       },
