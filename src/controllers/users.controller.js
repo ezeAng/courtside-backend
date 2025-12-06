@@ -95,8 +95,7 @@ export const getHomeStats = async (req, res) => {
 
     if (error) throw error;
 
-    const stats = data && data.length > 0 ? data[0] : {};
-
+    const stats = data ?? {};
     return res.json({ success: true, stats });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
