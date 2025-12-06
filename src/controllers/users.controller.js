@@ -1,3 +1,4 @@
+import { supabase } from "../config/supabase.js";
 import * as userService from "../services/users.service.js";
 
 export const getMyProfile = async (req, res) => {
@@ -49,5 +50,23 @@ export const updateMyProfile = async (req, res) => {
     res.status(200).json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+export const getHomeStats = async (req, res) => {
+  try {
+    const user_id = req.user.auth_id;
+
+    const { data, error } = await supabase.rpc("get_home_stats", {
+      user_auth_id: user_id,
+    });
+
+    if (error) throw error;
+
+    const stats = data && data.length > 0 ? data[0] : {};
+
+    return res.json({ success: true, stats });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
   }
 };
