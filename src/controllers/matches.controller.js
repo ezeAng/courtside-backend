@@ -85,9 +85,7 @@ export const getPendingMatches = async (req, res) => {
 export const confirmMatch = async (req, res) => {
   try {
     const userId = req.user?.auth_id || req.authUser?.auth_id;
-    console.log(userId)
     const { matchId } = req.params;
-    console.log(matchId)
     const result = await matchesService.confirmMatch(matchId, userId);
     res.json(result);
   } catch (err) {

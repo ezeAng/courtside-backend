@@ -106,7 +106,6 @@ export const getHomeStats = async (req, res) => {
 export const getCardData = async (req, res) => {
   try {
     const user_id = req.user.auth_id;
-
     // Fetch user profile + elo
     const { data: user, error: userErr } = await supabase
       .from("users")
@@ -115,7 +114,7 @@ export const getCardData = async (req, res) => {
       )
       .eq("auth_id", user_id)
       .single();
-
+    
     if (userErr) throw userErr;
 
     // Win rate from last 10 matches
@@ -123,6 +122,7 @@ export const getCardData = async (req, res) => {
       "get_win_rate_last10",
       { user_auth_id: user_id }
     );
+    
     if (winErr) throw winErr;
 
     // Best match (singles-only assumption)
@@ -130,6 +130,7 @@ export const getCardData = async (req, res) => {
       "get_best_match",
       { user_auth_id: user_id }
     );
+    
     if (bestErr) throw bestErr;
 
     // Total matches played
@@ -138,28 +139,31 @@ export const getCardData = async (req, res) => {
       .select("*", { count: "exact", head: true })
       .eq("auth_id", user_id);
     if (totalErr) throw totalErr;
-
+    
     // Matches this week
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    const { count: weekMatches, error: weekErr } = await supabase
-      .from("match_players")
-      .select("*", { count: "exact", head: true })
-      .eq("auth_id", user_id)
-      .gte("created_at", oneWeekAgo);
-    if (weekErr) throw weekErr;
-
+    
+    // const { count: weekMatches, error: weekErr } = await supabase
+    //   .from("match_players")
+    //   .select("*", { count: "exact", head: true })
+    //   .eq("auth_id", user_id)
+    //   .gte("created_at", oneWeekAgo); // no such field
+    
+    // if (weekErr) throw weekErr;
+    var weekMatches = 0;
+    
     // Tier calculation
+
     let tier = "Bronze";
     if (user.elo >= 900 && user.elo < 1100) tier = "Silver";
     if (user.elo >= 1100 && user.elo < 1300) tier = "Gold";
     if (user.elo >= 1300 && user.elo < 1500) tier = "Platinum";
     if (user.elo >= 1500) tier = "Diamond";
-
+    
     // Star rating (1–5)
     let star_rating = Math.max(1, Math.min(5, Math.round(user.elo / 300)));
-
-    return res.json({
+    
+    const result = {
       success: true,
       card: {
         username: user.username,
@@ -176,7 +180,8 @@ export const getCardData = async (req, res) => {
         total_matches: totalMatches || 0,
         matches_this_week: weekMatches || 0,
       },
-    });
+    }
+    return res.json(result);
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
