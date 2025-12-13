@@ -32,9 +32,62 @@ const buildPlayers = (players, userMap) => {
   );
 };
 
+const normalizeTeam = (team) => {
+  if (team === "A" || team === "B") return team;
+  if (team === 1) return "A";
+  if (team === 2) return "B";
+  return null;
+};
+
+const normalizeScoreInput = (scoreInput) => {
+  if (!scoreInput) return null;
+  if (typeof scoreInput === "string") return scoreInput;
+
+  if (typeof scoreInput === "object" && Array.isArray(scoreInput.sets)) {
+    const parts = scoreInput.sets
+      .map((set) => {
+        if (!Array.isArray(set) || set.length !== 2) return null;
+        const [a, b] = set;
+        if (!Number.isInteger(a) || !Number.isInteger(b)) return null;
+        return `${a}-${b}`;
+      })
+      .filter(Boolean);
+
+    if (parts.length === scoreInput.sets.length && parts.length > 0) {
+      return parts.join(",");
+    }
+  }
+
+  return null;
+};
+
 const determineWinnerTeam = (players) => {
   const winnerPlayer = players.find((p) => p.is_winner);
   return winnerPlayer ? winnerPlayer.team : null;
+};
+
+const loadMatchWithPlayers = async (matchId, client = supabase) => {
+  const { data: match, error: matchError } = await client
+    .from("matches")
+    .select("*")
+    .eq("match_id", matchId)
+    .single();
+
+  if (matchError) {
+    const status = matchError.code === "PGRST116" ? 404 : 400;
+    return { error: matchError.message, status };
+  }
+
+  const { data: matchPlayers, error: playersError } = await client
+    .from("match_players")
+    .select("auth_id, team, is_winner")
+    .eq("match_id", matchId);
+
+  if (playersError) {
+    return { error: playersError.message, status: 400 };
+  }
+
+  return { match, matchPlayers: matchPlayers || [] };
 };
 
 const buildMatchResponse = (match, players, userMap) => {
@@ -113,12 +166,31 @@ const buildConfirmationList = (
   return [...teamASet, ...teamBSet].filter((id) => id !== submitterId);
 };
 
+const buildOpponentConfirmations = (matchPlayers, submitterId) => {
+  const submitter = matchPlayers.find((p) => p.auth_id === submitterId);
+  if (!submitter) return [];
+
+  const submitterTeam = submitter.team;
+  const opponentTeam = submitterTeam === "A" ? "B" : "A";
+
+  return matchPlayers
+    .filter((p) => p.team === opponentTeam)
+    .map((p) => p.auth_id)
+    .filter(Boolean);
+};
+
 export const createMatch = async (
   { match_type, players_team_A = [], players_team_B = [], winner_team, score, played_at },
   created_by
 ) => {
   try {
-    const parsedScore = parseScore(score);
+    const normalizedScore = normalizeScoreInput(score);
+
+    if (!normalizedScore) {
+      return { error: "Invalid score format", status: 400 };
+    }
+
+    const parsedScore = parseScore(normalizedScore);
     const resolvedWinner = winner_team || parsedScore.winner_team;
 
     const playedAtTimestamp = played_at ?? new Date().toISOString();
@@ -140,7 +212,7 @@ export const createMatch = async (
       .insert([
         {
           match_type,
-          score,
+          score: normalizedScore,
           played_at: playedAtTimestamp,
           created_by,
           submitted_by: created_by,
@@ -197,7 +269,7 @@ export const createMatch = async (
       match_id: match.match_id,
       match_type,
       winner_team: resolvedWinner,
-      score,
+      score: normalizedScore,
       status: match.status,
       needs_confirmation_from_list: match.needs_confirmation_from_list,
       players: responseMatch.players,
@@ -205,6 +277,292 @@ export const createMatch = async (
   } catch (err) {
     return { error: err.message };
   }
+};
+
+export const createInvite = async ({ mode, players = [] }, created_by) => {
+  try {
+    if (!mode) return { error: "Mode is required", status: 400 };
+    if (!Array.isArray(players) || players.length === 0)
+      return { error: "Players array is required", status: 400 };
+
+    const match_type = mode;
+    if (!["singles", "doubles"].includes(match_type)) {
+      return { error: "Invalid mode", status: 400 };
+    }
+
+    const normalizedPlayers = players.map((p) => ({
+      auth_id: p.auth_id,
+      team: normalizeTeam(p.team),
+    }));
+
+    if (normalizedPlayers.some((p) => !p.auth_id || !p.team)) {
+      return { error: "Each player requires auth_id and valid team", status: 400 };
+    }
+
+    const participantIds = new Set(normalizedPlayers.map((p) => p.auth_id));
+    if (!participantIds.has(created_by)) {
+      return { error: "Creator must be part of the match", status: 400 };
+    }
+
+    const { data: match, error: matchError } = await supabase
+      .from("matches")
+      .insert([
+        {
+          match_type,
+          status: "invite",
+          created_by,
+        },
+      ])
+      .select()
+      .single();
+
+    if (matchError) return { error: matchError.message, status: 400 };
+
+    const playerRows = normalizedPlayers.map((player) => ({
+      match_id: match.match_id,
+      auth_id: player.auth_id,
+      team: player.team,
+    }));
+
+    const { error: playersError } = await supabase.from("match_players").insert(playerRows);
+
+    if (playersError) return { error: playersError.message, status: 400 };
+
+    return { match_id: match.match_id, status: match.status, match_type };
+  } catch (err) {
+    return { error: err.message };
+  }
+};
+
+export const acceptInvite = async (matchId, userId) => {
+  const { match, matchPlayers, error, status } = await loadMatchWithPlayers(matchId);
+  if (error) return { error, status };
+
+  if (match.status !== "invite") {
+    return { error: "Match is not open for acceptance", status: 400 };
+  }
+
+  const participantIds = matchPlayers.map((p) => p.auth_id);
+  if (!participantIds.includes(userId)) {
+    return { error: "User is not a participant", status: 403 };
+  }
+
+  if (match.accepted_by) {
+    return {
+      match_id: match.match_id,
+      status: match.status,
+      accepted_by: match.accepted_by,
+      accepted_at: match.accepted_at,
+    };
+  }
+
+  const accepted_at = new Date().toISOString();
+
+  const { error: updateError, data } = await supabase
+    .from("matches")
+    .update({ accepted_by: userId, accepted_at })
+    .eq("match_id", matchId)
+    .select()
+    .single();
+
+  if (updateError) return { error: updateError.message, status: 400 };
+
+  return {
+    match_id: data.match_id,
+    status: data.status,
+    accepted_by: data.accepted_by,
+    accepted_at: data.accepted_at,
+  };
+};
+
+export const cancelMatch = async (matchId, userId, reason) => {
+  const { match, matchPlayers, error, status } = await loadMatchWithPlayers(matchId);
+  if (error) return { error, status };
+
+  if (!["invite", "pending"].includes(match.status)) {
+    return { error: "Match cannot be cancelled", status: 400 };
+  }
+
+  const participantIds = matchPlayers.map((p) => p.auth_id);
+  const isParticipant = participantIds.includes(userId) || match.created_by === userId;
+
+  if (!isParticipant) {
+    return { error: "User not authorized to cancel this match", status: 403 };
+  }
+
+  const cancelled_at = new Date().toISOString();
+
+  const { error: updateError } = await supabase
+    .from("matches")
+    .update({
+      status: "cancelled",
+      cancelled_by: userId,
+      cancel_reason: reason || null,
+      cancelled_at,
+    })
+    .eq("match_id", matchId);
+
+  if (updateError) return { error: updateError.message, status: 400 };
+
+  return {
+    success: true,
+    status: "cancelled",
+    match_id: matchId,
+    cancel_reason: reason || null,
+  };
+};
+
+export const submitMatchScore = async (matchId, userId, score) => {
+  const { match, matchPlayers, error, status } = await loadMatchWithPlayers(matchId);
+  if (error) return { error, status };
+
+  if (!["invite", "pending"].includes(match.status)) {
+    return { error: "Match is not accepting scores", status: 400 };
+  }
+
+  if (!matchPlayers.some((p) => p.auth_id === userId)) {
+    return { error: "User is not a participant", status: 403 };
+  }
+
+  const normalizedScore = normalizeScoreInput(score);
+  if (!normalizedScore) {
+    return { error: "Invalid score format", status: 400 };
+  }
+
+  let parsedScore;
+
+  try {
+    parsedScore = parseScore(normalizedScore);
+  } catch (err) {
+    return { error: err.message, status: 400 };
+  }
+
+  const winner_team = parsedScore.winner_team;
+  const confirmationList = buildOpponentConfirmations(matchPlayers, userId);
+  const submitted_at = new Date().toISOString();
+  const played_at = match.played_at || submitted_at;
+
+  const { error: updateError } = await supabase
+    .from("matches")
+    .update({
+      score: normalizedScore,
+      submitted_by: userId,
+      submitted_at,
+      status: "pending",
+      played_at,
+      needs_confirmation_from_list: confirmationList,
+    })
+    .eq("match_id", matchId);
+
+  if (updateError) return { error: updateError.message, status: 400 };
+
+  const winnerUpdates = matchPlayers.map((player) => ({
+    match_id: matchId,
+    auth_id: player.auth_id,
+    team: player.team,
+    is_winner: player.team === winner_team,
+  }));
+
+  const { error: winnerError } = await supabase
+    .from("match_players")
+    .upsert(winnerUpdates, { onConflict: "match_id,auth_id" });
+
+  if (winnerError) return { error: winnerError.message, status: 400 };
+
+  return {
+    match_id: matchId,
+    status: "pending",
+    winner_team,
+    score: normalizedScore,
+    needs_confirmation_from_list: confirmationList,
+  };
+};
+
+export const listInvites = async (userId, type = "received") => {
+  const normalizedType = type === "sent" ? "sent" : "received";
+
+  const { data: playerMatches, error: playerError } = await supabase
+    .from("match_players")
+    .select("match_id")
+    .eq("auth_id", userId);
+
+  if (playerError) return { error: playerError.message, status: 400 };
+
+  const participationMatchIds = [...new Set((playerMatches || []).map((m) => m.match_id))];
+
+  let query = supabase.from("matches").select("*").eq("status", "invite");
+
+  if (normalizedType === "sent") {
+    query = query.eq("created_by", userId);
+  } else {
+    if (participationMatchIds.length === 0) return { invites: [] };
+    query = query.neq("created_by", userId).in("match_id", participationMatchIds);
+  }
+
+  const { data: invites, error: inviteError } = await query.order("created_at", {
+    ascending: false,
+  });
+
+  if (inviteError) return { error: inviteError.message, status: 400 };
+  if (!invites || invites.length === 0) return { invites: [] };
+
+  const { matchPlayers, userMap, error } = await fetchPlayersWithUsers(
+    invites.map((m) => m.match_id)
+  );
+
+  if (error) return { error, status: 400 };
+
+  const formatted = invites.map((invite) => {
+    const players = matchPlayers.filter((p) => p.match_id === invite.match_id);
+    const playerInfo = buildPlayers(players, userMap);
+
+    return {
+      match_id: invite.match_id,
+      status: invite.status,
+      match_type: invite.match_type,
+      created_by: invite.created_by,
+      accepted_by: invite.accepted_by || null,
+      accepted_at: invite.accepted_at || null,
+      players: playerInfo,
+    };
+  });
+
+  return { invites: formatted };
+};
+
+export const getBadgeCounts = async (userId) => {
+  const { count: pending, error: pendingError } = await supabase
+    .from("matches")
+    .select("match_id", { count: "exact", head: true })
+    .eq("status", "pending")
+    .contains("needs_confirmation_from_list", JSON.stringify([userId]));
+
+  if (pendingError) return { error: pendingError.message, status: 400 };
+
+  const { data: playerMatches, error: playerError } = await supabase
+    .from("match_players")
+    .select("match_id")
+    .eq("auth_id", userId);
+
+  if (playerError) return { error: playerError.message, status: 400 };
+
+  const matchIds = [...new Set((playerMatches || []).map((m) => m.match_id))];
+
+  let invites = 0;
+
+  if (matchIds.length > 0) {
+    const { count: invitesCount, error: invitesError } = await supabase
+      .from("matches")
+      .select("match_id", { count: "exact", head: true })
+      .eq("status", "invite")
+      .neq("created_by", userId)
+      .in("match_id", matchIds);
+
+    if (invitesError) return { error: invitesError.message, status: 400 };
+    invites = invitesCount ?? 0;
+  }
+
+  return { pending: pending ?? 0, invites };
 };
 
 export const getMatchesForUser = async (auth_id) => {
@@ -437,7 +795,7 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
   if (loadErr || !match) throw buildError("Match not found", 404);
   if (match.status !== "pending") throw buildError("Match already processed", 400);
   if (
-    !Array.isArray(match.needs_confirmation_from_list) ||
+    Array.isArray(match.needs_confirmation_from_list) &&
     !match.needs_confirmation_from_list.includes(userId)
   ) {
     throw buildError("User not authorized to confirm this match", 403);
@@ -452,6 +810,22 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
   if (!matchPlayers || matchPlayers.length === 0) throw buildError("Match players not found", 404);
 
   const playerIds = matchPlayers.map((p) => p.auth_id);
+
+  if (!playerIds.includes(userId)) {
+    throw buildError("User not authorized to confirm this match", 403);
+  }
+
+  const submitter = matchPlayers.find((p) => p.auth_id === match.submitted_by);
+
+  if (!submitter) {
+    throw buildError("Submitting player not found for this match", 400);
+  }
+
+  const confirmer = matchPlayers.find((p) => p.auth_id === userId);
+
+  if (confirmer?.team === submitter.team) {
+    throw buildError("Confirmation must come from the opposing team", 403);
+  }
 
   const { data: players, error: usersError } = await client
     .from("users")
