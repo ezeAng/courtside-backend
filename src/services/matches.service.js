@@ -387,6 +387,46 @@ const buildEloUpdates = (match, matchPlayers, players) => {
   return { updates, teamA_delta, teamB_delta };
 };
 
+const getRankForElo = async (client, eloValue) => {
+  const { count, error } = await client
+    .from("users")
+    .select("auth_id", { count: "exact", head: true })
+    .gt("elo", eloValue ?? 0);
+
+  if (error) throw buildError(error.message, 400);
+
+  return (count ?? 0) + 1;
+};
+
+const buildUpsetDetails = (winner_team, matchPlayers, eloMap) => {
+  if (!winner_team) return { is_upset: false };
+
+  const winnerIds = matchPlayers.filter((p) => p.team === winner_team).map((p) => p.auth_id);
+  const opponentIds = matchPlayers.filter((p) => p.team !== winner_team).map((p) => p.auth_id);
+
+  const average = (ids) => {
+    if (ids.length === 0) return null;
+    const total = ids.reduce((sum, id) => sum + (eloMap.get(id) ?? 1000), 0);
+    return total / ids.length;
+  };
+
+  const winner_avg_elo = average(winnerIds);
+  const opponent_avg_elo = average(opponentIds);
+
+  if (winner_avg_elo === null || opponent_avg_elo === null) {
+    return { is_upset: false, winner_avg_elo, opponent_avg_elo };
+  }
+
+  const elo_gap = opponent_avg_elo - winner_avg_elo;
+
+  return {
+    is_upset: elo_gap > 0,
+    winner_avg_elo,
+    opponent_avg_elo,
+    elo_gap,
+  };
+};
+
 export const confirmMatch = async (matchId, userId, client = supabase) => {
   const { data: match, error: loadErr } = await client
     .from("matches")
@@ -419,6 +459,14 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
     .in("auth_id", playerIds);
 
   if (usersError) throw buildError(usersError.message, 400);
+
+  const preMatchRanks = new Map();
+  const eloMap = new Map((players || []).map((p) => [p.auth_id, p.elo ?? 1000]));
+
+  for (const playerId of playerIds) {
+    const rank = await getRankForElo(client, eloMap.get(playerId));
+    preMatchRanks.set(playerId, rank);
+  }
 
   const updateResult = buildEloUpdates(match, matchPlayers, players || []);
 
@@ -462,12 +510,34 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
 
   if (updateMatchErr) throw buildError(updateMatchErr.message, 400);
 
+  const rankChanges = [];
+
+  for (const update of updateResult.updates) {
+    const newRank = await getRankForElo(client, update.newElo);
+    const previousRank = preMatchRanks.get(update.playerId) ?? null;
+
+    rankChanges.push({
+      playerId: update.playerId,
+      previousRank,
+      newRank,
+      rankChange: previousRank && newRank ? previousRank - newRank : null,
+    });
+  }
+
+  const upsetDetails = buildUpsetDetails(
+    determineWinnerTeam(matchPlayers),
+    matchPlayers,
+    eloMap
+  );
+
   return {
     success: true,
     matchId,
     status: "confirmed",
     confirmed_at: confirmedAt,
     updated_elos: updateResult,
+    ranks: rankChanges,
+    upset: upsetDetails,
   };
 };
 
