@@ -6,6 +6,7 @@ import userRoutes from "./routes/users.route.js";
 import matchRoutes from "./routes/matches.routes.js";
 import leaderboardRoutes from "./routes/leaderboard.route.js";
 import statsRoutes from "./routes/stats.route.js";
+import profileRoutes from "./routes/profile.route.js";
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/matches", matchRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/stats", statsRoutes);
+app.use("/api/profile", profileRoutes);
 
 
 app.listen(process.env.PORT || 4000, "0.0.0.0", () => {
