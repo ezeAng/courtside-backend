@@ -3,6 +3,7 @@ import { supabase } from "../config/supabase.js";
 const allowedRanges = ["1D", "1W", "1M", "YTD", "ALL"];
 
 export const getEloSeries = async (authId, range = "1M") => {
+
   if (!allowedRanges.includes(range)) {
     return { error: "Invalid range" };
   }
@@ -14,6 +15,7 @@ export const getEloSeries = async (authId, range = "1M") => {
   });
 
   if (error) {
+    console.log(error)
     return { error: error.message };
   }
 

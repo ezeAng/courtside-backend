@@ -3,7 +3,6 @@ import { getEloSeries, ranges } from "../services/stats.service.js";
 export const fetchEloSeries = async (req, res) => {
   try {
     const range = req.query.range || "1M";
-
     if (!ranges.includes(range)) {
       return res.status(400).json({ error: "Invalid range" });
     }
@@ -15,6 +14,7 @@ export const fetchEloSeries = async (req, res) => {
     }
 
     const result = await getEloSeries(authId, range);
+
 
     if (result?.error) {
       return res.status(500).json({ error: result.error });
