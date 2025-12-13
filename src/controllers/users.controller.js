@@ -14,10 +14,10 @@ export const getMyProfile = async (req, res) => {
 
 export const searchUsers = async (req, res) => {
   try {
-    const { query, gender } = req.query;
-    const results = await userService.searchUsers(query, gender);
+    const { query, gender, limit, page } = req.query;
+    const results = await userService.searchUsers(query, gender, { limit, page });
 
-    return res.status(200).json({ results });
+    return res.status(200).json(results);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
