@@ -1,52 +1,70 @@
 import { supabase } from "../config/supabase.js";
 
+const DEFAULT_ELO = 1000;
+const SEARCH_RANGES = [100, 200, 400];
+
+const sortByEloCloseness = (targetElo, players = []) => {
+  return players
+    .map((player) => ({
+      ...player,
+      elo: player.elo ?? DEFAULT_ELO,
+      elo_gap: Math.abs((player.elo ?? DEFAULT_ELO) - targetElo),
+    }))
+    .sort((a, b) => {
+      if (a.elo_gap === b.elo_gap) return (b.elo ?? DEFAULT_ELO) - (a.elo ?? DEFAULT_ELO);
+      return a.elo_gap - b.elo_gap;
+    });
+};
+
 export const findMatch = async (userId, mode) => {
   if (!mode) return { error: "Mode is required", status: 400 };
 
-  const now = new Date().toISOString();
-
-  const { error: queueError } = await supabase
-    .from("matchmaking_queue")
-    .upsert(
-      { auth_id: userId, mode, queued_at: now, updated_at: now },
-      { onConflict: "auth_id,mode" }
-    );
-
-  if (queueError) return { error: queueError.message, status: 400 };
-
-  const { data: opponents, error: searchError } = await supabase
-    .from("matchmaking_queue")
-    .select("auth_id, mode, queued_at")
-    .eq("mode", mode)
-    .neq("auth_id", userId)
-    .order("queued_at", { ascending: true })
-    .limit(1);
-
-  if (searchError) return { error: searchError.message, status: 400 };
-
-  if (!opponents || opponents.length === 0) {
-    return { state: "queued" };
-  }
-
-  const opponent = opponents[0];
-
-  const { error: deleteError } = await supabase
-    .from("matchmaking_queue")
-    .delete()
-    .eq("mode", mode)
-    .in("auth_id", [userId, opponent.auth_id]);
-
-  if (deleteError) return { error: deleteError.message, status: 400 };
-
-  const { data: opponentProfile } = await supabase
+  // Fetch the requesting user's ELO to target similar opponents
+  const { data: userProfile, error: userError } = await supabase
     .from("users")
     .select("auth_id, username, elo")
-    .eq("auth_id", opponent.auth_id)
+    .eq("auth_id", userId)
     .single();
 
+  if (userError) return { error: userError.message, status: 400 };
+
+  const userElo = userProfile?.elo ?? DEFAULT_ELO;
+
+  // progressively widen the search window until we find candidates
+  for (const range of [...SEARCH_RANGES, null]) {
+    const minElo = range === null ? null : userElo - range;
+    const maxElo = range === null ? null : userElo + range;
+
+    let query = supabase
+      .from("users")
+      .select("auth_id, username, gender, elo, profile_image_url")
+      .neq("auth_id", userId)
+      .limit(50);
+
+    if (minElo !== null) query = query.gte("elo", minElo);
+    if (maxElo !== null) query = query.lte("elo", maxElo);
+
+    const { data: candidates, error: candidateError } = await query;
+
+    if (candidateError) return { error: candidateError.message, status: 400 };
+
+    if (candidates && candidates.length > 0) {
+      const recommendations = sortByEloCloseness(userElo, candidates).slice(0, 5);
+
+      return {
+        state: "suggested",
+        recommendations,
+        criteria: {
+          target_elo: userElo,
+          range: range === null ? "any" : range,
+        },
+      };
+    }
+  }
+
   return {
-    state: "matched",
-    opponent: opponentProfile || { auth_id: opponent.auth_id },
+    state: "no_suggestions",
+    message: "No other players available to recommend at this time.",
   };
 };
 
