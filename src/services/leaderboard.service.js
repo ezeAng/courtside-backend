@@ -9,7 +9,7 @@ export const getLeaderboard = async (gender) => {
 
   let query = supabase
     .from("users")
-    .select("auth_id, username, gender, elo")
+    .select("auth_id, username, gender, elo, profile_image_url")
     .order("elo", { ascending: false })
     .limit(100);
 

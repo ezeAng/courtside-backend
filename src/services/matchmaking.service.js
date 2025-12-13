@@ -8,7 +8,7 @@ export const findMatch = async (userId, mode) => {
   const { error: queueError } = await supabase
     .from("matchmaking_queue")
     .upsert(
-      { auth_id: userId, mode, created_at: now, updated_at: now },
+      { auth_id: userId, mode, queued_at: now, updated_at: now },
       { onConflict: "auth_id,mode" }
     );
 
@@ -16,10 +16,10 @@ export const findMatch = async (userId, mode) => {
 
   const { data: opponents, error: searchError } = await supabase
     .from("matchmaking_queue")
-    .select("auth_id, mode, created_at")
+    .select("auth_id, mode, queued_at")
     .eq("mode", mode)
     .neq("auth_id", userId)
-    .order("created_at", { ascending: true })
+    .order("queued_at", { ascending: true })
     .limit(1);
 
   if (searchError) return { error: searchError.message, status: 400 };
