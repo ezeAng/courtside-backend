@@ -63,16 +63,23 @@ export const updateUserService = async (authId, updates) => {
 };
 
 // ---------------- SEARCH USERS ----------------
-export const searchUsers = async (query, gender) => {
-  if (!query || query.length < 1) {
-    return [];
+export const searchUsers = async (query, gender, options = {}) => {
+  const trimmedQuery = query?.trim();
+
+  const page = Math.max(Number(options.page) || 1, 1);
+  const limit = Math.min(Math.max(Number(options.limit) || 10, 1), 25);
+  const offset = (page - 1) * limit;
+
+  if (!trimmedQuery || trimmedQuery.length < 2) {
+    return { results: [], page, hasMore: false };
   }
 
   let supabaseQuery = supabase
     .from("users")
     .select("auth_id, username, gender, elo")
-    .ilike("username", `%${query}%`)
-    .order("elo", { ascending: false });
+    .ilike("username", `%${trimmedQuery}%`)
+    .order("elo", { ascending: false })
+    .range(offset, offset + limit);
 
   if (gender) {
     supabaseQuery = supabaseQuery.eq("gender", gender);
@@ -84,7 +91,10 @@ export const searchUsers = async (query, gender) => {
     throw new Error(error.message);
   }
 
-  return data;
+  const hasMore = (data?.length || 0) > limit;
+  const results = (data || []).slice(0, limit);
+
+  return { results, page, hasMore };
 };
 
 // ---------------- LIST OTHER USERS ----------------
