@@ -343,8 +343,16 @@ const buildEloUpdates = (match, matchPlayers, players) => {
     teamB_delta = calculations.teamB[0].new - calculations.teamB[0].old;
 
     updates = [
-      { playerId: playerA, newElo: calculations.teamA[0].new },
-      { playerId: playerB, newElo: calculations.teamB[0].new },
+      {
+        playerId: playerA,
+        oldElo: calculations.teamA[0].old,
+        newElo: calculations.teamA[0].new,
+      },
+      {
+        playerId: playerB,
+        oldElo: calculations.teamB[0].old,
+        newElo: calculations.teamB[0].new,
+      },
     ];
   } else if (match.match_type === "doubles") {
     if (playersTeamA.length !== 2 || playersTeamB.length !== 2) {
@@ -363,10 +371,12 @@ const buildEloUpdates = (match, matchPlayers, players) => {
     updates = [
       ...playersTeamA.map((playerId, idx) => ({
         playerId,
+        oldElo: calculations.teamA[idx].old,
         newElo: calculations.teamA[idx].new,
       })),
       ...playersTeamB.map((playerId, idx) => ({
         playerId,
+        oldElo: calculations.teamB[idx].old,
         newElo: calculations.teamB[idx].new,
       })),
     ];
@@ -377,8 +387,8 @@ const buildEloUpdates = (match, matchPlayers, players) => {
   return { updates, teamA_delta, teamB_delta };
 };
 
-export const confirmMatch = async (matchId, userId) => {
-  const { data: match, error: loadErr } = await supabase
+export const confirmMatch = async (matchId, userId, client = supabase) => {
+  const { data: match, error: loadErr } = await client
     .from("matches")
     .select("*")
     .eq("match_id", matchId)
@@ -393,7 +403,7 @@ export const confirmMatch = async (matchId, userId) => {
     throw buildError("User not authorized to confirm this match", 403);
   }
 
-  const { data: matchPlayers, error: playersError } = await supabase
+  const { data: matchPlayers, error: playersError } = await client
     .from("match_players")
     .select("auth_id, team, is_winner")
     .eq("match_id", matchId);
@@ -403,7 +413,7 @@ export const confirmMatch = async (matchId, userId) => {
 
   const playerIds = matchPlayers.map((p) => p.auth_id);
 
-  const { data: players, error: usersError } = await supabase
+  const { data: players, error: usersError } = await client
     .from("users")
     .select("auth_id, elo")
     .in("auth_id", playerIds);
@@ -413,7 +423,7 @@ export const confirmMatch = async (matchId, userId) => {
   const updateResult = buildEloUpdates(match, matchPlayers, players || []);
 
   for (const update of updateResult.updates) {
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await client
       .from("users")
       .update({ elo: update.newElo })
       .eq("auth_id", update.playerId);
@@ -422,8 +432,25 @@ export const confirmMatch = async (matchId, userId) => {
   }
 
   const confirmedAt = new Date().toISOString();
+  const playedAt = match.played_at ?? confirmedAt;
 
-  const { error: updateMatchErr } = await supabase
+  const eloHistoryRows = updateResult.updates.map((update) => ({
+    auth_id: update.playerId,
+    match_id: matchId,
+    old_elo: update.oldElo,
+    new_elo: update.newElo,
+    created_at: playedAt,
+  }));
+
+  if (eloHistoryRows.length > 0) {
+    const { error: historyErr } = await client
+      .from("elo_history")
+      .upsert(eloHistoryRows, { onConflict: "auth_id,match_id" });
+
+    if (historyErr) throw buildError(historyErr.message, 400);
+  }
+
+  const { error: updateMatchErr } = await client
     .from("matches")
     .update({
       status: "confirmed",
