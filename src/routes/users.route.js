@@ -4,6 +4,7 @@ import {
   getMyProfile,
   getHomeStats,
   getCardData,
+  deleteMyAccount,
   listOtherUsers,
   searchUsers,
   updateMyProfile,
@@ -17,6 +18,7 @@ router.get("/home-stats", requireAuth, getHomeStats);
 router.get("/card-data", requireAuth, getCardData);
 router.put("/update", requireAuth, updateMyProfile);
 router.put("/me", requireAuth, updateProfile);
+router.delete("/me", requireAuth, deleteMyAccount);
 router.get("/search", searchUsers);
 router.get("/others", requireAuth, listOtherUsers);
 
