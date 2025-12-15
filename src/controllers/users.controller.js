@@ -185,3 +185,23 @@ export const getCardData = async (req, res) => {
     return res.status(400).json({ success: false, message: err.message });
   }
 };
+
+export const deleteMyAccount = async (req, res) => {
+  try {
+    const authId = req.authUser?.auth_id || req.authUser?.id;
+
+    if (!authId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const result = await userService.deleteUserAndData(authId);
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, errors: result.errors });
+    }
+
+    return res.status(200).json({ success: true, message: "Account deleted" });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};

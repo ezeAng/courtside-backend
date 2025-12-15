@@ -111,3 +111,47 @@ export const listOtherUsers = async (auth_id) => {
 
   return data;
 };
+
+// ---------------- DELETE USER ----------------
+export const deleteUserAndData = async (authId) => {
+  const errors = [];
+
+  const handleStep = async (operation) => {
+    const { error } = await operation();
+
+    if (error && error.message?.toLowerCase() !== "object not found") {
+      errors.push(error.message);
+    }
+  };
+
+  await handleStep(() =>
+    supabase
+      .from("matchmaking_queue")
+      .delete()
+      .eq("auth_id", authId)
+  );
+
+  await handleStep(() =>
+    supabase
+      .from("elo_history")
+      .delete()
+      .eq("auth_id", authId)
+  );
+
+  await handleStep(() =>
+    supabase.storage.from("profile-images").remove([`users/${authId}.jpg`])
+  );
+
+  await handleStep(() => supabase.from("users").delete().eq("auth_id", authId));
+
+  const { error: authError } = await supabase.auth.admin.deleteUser(authId);
+  if (authError) {
+    errors.push(authError.message);
+  }
+
+  if (errors.length > 0) {
+    return { success: false, errors };
+  }
+
+  return { success: true };
+};
