@@ -96,11 +96,21 @@ const loadMatchWithPlayers = async (matchId, client = supabase) => {
 };
 
 const buildMatchResponse = (match, players, userMap) => {
+  let outcome = { winner_team: determineWinnerTeam(players), is_draw: false };
+
+  try {
+    const parsed = parseScore(match.score || "");
+    outcome = { winner_team: parsed.winner_team, is_draw: parsed.is_draw || false };
+  } catch (err) {
+    // Fall back to stored winner flags if the score cannot be parsed
+  }
+
   return {
     match_id: match.match_id,
     match_type: match.match_type,
     score: match.score,
-    winner_team: determineWinnerTeam(players),
+    winner_team: outcome.winner_team ?? determineWinnerTeam(players),
+    is_draw: outcome.is_draw,
     played_at: match.played_at,
     players: buildPlayers(players, userMap),
   };
@@ -278,6 +288,7 @@ export const createMatch = async (
       match_id: match.match_id,
       match_type,
       winner_team: resolvedWinner,
+      is_draw: parsedScore.is_draw || false,
       score: normalizedScore,
       status: match.status,
       needs_confirmation_from_list: match.needs_confirmation_from_list,
@@ -494,6 +505,7 @@ export const submitMatchScore = async (matchId, userId, score, providedWinner) =
     match_id: matchId,
     status: "pending",
     winner_team,
+    is_draw: parsedScore.is_draw || false,
     score: normalizedScore,
     needs_confirmation_from_list: confirmationList,
   };
