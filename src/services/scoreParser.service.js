@@ -34,8 +34,28 @@ export const parseScore = (scoreText) => {
     }
   });
 
+  const isTwoSetDrawCandidate = sets.length === 2 && teamA_sets_won === teamB_sets_won;
+
+  if (isTwoSetDrawCandidate) {
+    const [firstSet, secondSet] = sets;
+    const diff1 = Math.abs(firstSet.a - firstSet.b);
+    const diff2 = Math.abs(secondSet.a - secondSet.b);
+
+    if (diff1 === diff2) {
+      return {
+        sets,
+        teamA_sets_won,
+        teamB_sets_won,
+        winner_team: null,
+        is_draw: true,
+      };
+    }
+  }
+
   if (teamA_sets_won === teamB_sets_won) {
-    throw new Error("Score must produce a winner");
+    throw new Error(
+      "Score must produce a winner unless two-set draw has identical score differentials"
+    );
   }
 
   const winner_team = teamA_sets_won > teamB_sets_won ? "A" : "B";
@@ -45,5 +65,6 @@ export const parseScore = (scoreText) => {
     teamA_sets_won,
     teamB_sets_won,
     winner_team,
+    is_draw: false,
   };
 };

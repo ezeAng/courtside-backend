@@ -78,9 +78,9 @@ export const submitMatchScore = async (req, res) => {
   try {
     const userId = req.user?.auth_id || req.authUser?.auth_id;
     const { match_id } = req.params;
-    const { score } = req.body;
+    const { score, winner_team } = req.body;
 
-    const result = await matchesService.submitMatchScore(match_id, userId, score);
+    const result = await matchesService.submitMatchScore(match_id, userId, score, winner_team);
 
     if (result?.error) {
       const status = result.status || 400;
