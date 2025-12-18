@@ -1,6 +1,7 @@
 import { supabase } from "../config/supabase.js";
 
 const K_FACTOR = 32;
+const DRAW_BONUS = 5;
 
 const expectedScore = (playerElo, opponentElo) => 1 / (1 + 10 ** ((opponentElo - playerElo) / 400));
 
@@ -17,6 +18,13 @@ export const calculateEloSingles = (playerA_elo, playerB_elo, winner_team) => {
   return {
     teamA: [{ old: playerA_elo, new: newA }],
     teamB: [{ old: playerB_elo, new: newB }],
+  };
+};
+
+export const calculateEloDrawSingles = (playerA_elo, playerB_elo) => {
+  return {
+    teamA: [{ old: playerA_elo, new: playerA_elo + DRAW_BONUS }],
+    teamB: [{ old: playerB_elo, new: playerB_elo + DRAW_BONUS }],
   };
 };
 
@@ -40,6 +48,17 @@ export const calculateEloDoubles = (teamA_elo_array, teamB_elo_array, winner_tea
   return {
     teamA: teamA_elo_array.map((elo) => ({ old: elo, new: elo + deltaA })),
     teamB: teamB_elo_array.map((elo) => ({ old: elo, new: elo + deltaB })),
+  };
+};
+
+export const calculateEloDrawDoubles = (teamA_elo_array, teamB_elo_array) => {
+  if (teamA_elo_array.length !== 2 || teamB_elo_array.length !== 2) {
+    throw new Error("Doubles matches require exactly 2 players per team");
+  }
+
+  return {
+    teamA: teamA_elo_array.map((elo) => ({ old: elo, new: elo + DRAW_BONUS })),
+    teamB: teamB_elo_array.map((elo) => ({ old: elo, new: elo + DRAW_BONUS })),
   };
 };
 

@@ -1,6 +1,11 @@
 import { supabase } from "../config/supabase.js";
 import { parseScore } from "./scoreParser.service.js";
-import { calculateEloDoubles, calculateEloSingles } from "./elo.service.js";
+import {
+  calculateEloDoubles,
+  calculateEloDrawDoubles,
+  calculateEloDrawSingles,
+  calculateEloSingles,
+} from "./elo.service.js";
 
 const buildError = (message, status = 400) => {
   const err = new Error(message);
@@ -191,13 +196,17 @@ export const createMatch = async (
     }
 
     const parsedScore = parseScore(normalizedScore);
-    const resolvedWinner = winner_team || parsedScore.winner_team;
+    if (parsedScore.is_draw && winner_team) {
+      return { error: "Cannot specify a winner for a drawn scoreline", status: 400 };
+    }
 
-    const playedAtTimestamp = played_at ?? new Date().toISOString();
-
-    if (winner_team && winner_team !== parsedScore.winner_team) {
+    if (winner_team && parsedScore.winner_team && winner_team !== parsedScore.winner_team) {
       return { error: "Provided winner does not match parsed score" };
     }
+
+    const resolvedWinner = winner_team || parsedScore.winner_team || null;
+
+    const playedAtTimestamp = played_at ?? new Date().toISOString();
 
     const confirmationList = [
       ...new Set(
@@ -412,7 +421,7 @@ export const cancelMatch = async (matchId, userId, reason) => {
   };
 };
 
-export const submitMatchScore = async (matchId, userId, score) => {
+export const submitMatchScore = async (matchId, userId, score, providedWinner) => {
   const { match, matchPlayers, error, status } = await loadMatchWithPlayers(matchId);
   if (error) return { error, status };
 
@@ -437,7 +446,19 @@ export const submitMatchScore = async (matchId, userId, score) => {
     return { error: err.message, status: 400 };
   }
 
-  const winner_team = parsedScore.winner_team;
+  if (parsedScore.is_draw && providedWinner) {
+    return { error: "Cannot specify a winner for a drawn scoreline", status: 400 };
+  }
+
+  if (
+    providedWinner &&
+    parsedScore.winner_team &&
+    providedWinner !== parsedScore.winner_team
+  ) {
+    return { error: "Provided winner does not match parsed score", status: 400 };
+  }
+
+  const winner_team = providedWinner || parsedScore.winner_team || null;
   const confirmationList = buildOpponentConfirmations(matchPlayers, userId);
   const submitted_at = new Date().toISOString();
   const played_at = match.played_at || submitted_at;
@@ -671,14 +692,12 @@ export const getPendingMatches = async (userId) => {
   return { incoming, outgoing };
 };
 
-const buildEloUpdates = (match, matchPlayers, players) => {
+const buildEloUpdates = (match, matchPlayers, players, parsedScore) => {
   const playersTeamA = matchPlayers.filter((p) => p.team === "A").map((p) => p.auth_id);
   const playersTeamB = matchPlayers.filter((p) => p.team === "B").map((p) => p.auth_id);
-  const winner_team = determineWinnerTeam(matchPlayers);
-
-  if (!winner_team) {
-    throw buildError("Winner not determined for this match", 400);
-  }
+  const outcome = parsedScore || parseScore(match.score || "");
+  const winner_team = outcome.winner_team || null;
+  const is_draw = outcome.is_draw || !winner_team;
 
   const eloMap = new Map(players.map((p) => [p.auth_id, p.elo ?? 1000]));
   const getElo = (userId) => eloMap.get(userId) ?? 1000;
@@ -695,7 +714,9 @@ const buildEloUpdates = (match, matchPlayers, players) => {
       throw buildError("Singles match requires two players", 400);
     }
 
-    const calculations = calculateEloSingles(getElo(playerA), getElo(playerB), winner_team);
+    const calculations = is_draw
+      ? calculateEloDrawSingles(getElo(playerA), getElo(playerB))
+      : calculateEloSingles(getElo(playerA), getElo(playerB), winner_team);
 
     teamA_delta = calculations.teamA[0].new - calculations.teamA[0].old;
     teamB_delta = calculations.teamB[0].new - calculations.teamB[0].old;
@@ -717,11 +738,16 @@ const buildEloUpdates = (match, matchPlayers, players) => {
       throw buildError("Doubles match requires two players per team", 400);
     }
 
-    const calculations = calculateEloDoubles(
-      playersTeamA.map((id) => getElo(id)),
-      playersTeamB.map((id) => getElo(id)),
-      winner_team
-    );
+    const calculations = is_draw
+      ? calculateEloDrawDoubles(
+          playersTeamA.map((id) => getElo(id)),
+          playersTeamB.map((id) => getElo(id))
+        )
+      : calculateEloDoubles(
+          playersTeamA.map((id) => getElo(id)),
+          playersTeamB.map((id) => getElo(id)),
+          winner_team
+        );
 
     teamA_delta = calculations.teamA[0].new - calculations.teamA[0].old;
     teamB_delta = calculations.teamB[0].new - calculations.teamB[0].old;
@@ -827,6 +853,14 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
     throw buildError("Confirmation must come from the opposing team", 403);
   }
 
+  let parsedScore;
+
+  try {
+    parsedScore = parseScore(match.score);
+  } catch (err) {
+    throw buildError(err.message, 400);
+  }
+
   const { data: players, error: usersError } = await client
     .from("users")
     .select("auth_id, elo")
@@ -842,7 +876,7 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
     preMatchRanks.set(playerId, rank);
   }
 
-  const updateResult = buildEloUpdates(match, matchPlayers, players || []);
+  const updateResult = buildEloUpdates(match, matchPlayers, players || [], parsedScore);
 
   for (const update of updateResult.updates) {
     const { error: updateErr } = await client
@@ -899,7 +933,7 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
   }
 
   const upsetDetails = buildUpsetDetails(
-    determineWinnerTeam(matchPlayers),
+    parsedScore.winner_team ?? determineWinnerTeam(matchPlayers),
     matchPlayers,
     eloMap
   );
