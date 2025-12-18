@@ -23,6 +23,35 @@ export const searchUsers = async (req, res) => {
   }
 };
 
+export const searchUsernames = async (req, res) => {
+  try {
+    const { query, limit } = req.query;
+    const authId = req.authUser?.auth_id || req.authUser?.id;
+
+    const results = await userService.searchUsernames(query, { limit, excludeAuthId: authId });
+
+    return res.status(200).json(results);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const getUserProfileByUsername = async (req, res) => {
+  try {
+    const { username } = req.query;
+    const result = await userService.getUserProfileWithStats(username);
+
+    if (result?.error) {
+      const status = result.status || 400;
+      return res.status(status).json({ error: result.error });
+    }
+
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 export const listOtherUsers = async (req, res) => {
   try {
     const auth_id = req.authUser.id;
