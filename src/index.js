@@ -8,6 +8,7 @@ import leaderboardRoutes from "./routes/leaderboard.route.js";
 import statsRoutes from "./routes/stats.route.js";
 import profileRoutes from "./routes/profile.route.js";
 import matchmakingRoutes from "./routes/matchmaking.route.js";
+import feedbackRoutes from "./routes/feedback.route.js";
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use("/api/matchmaking", matchmakingRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api", feedbackRoutes);
 
 
 app.listen(process.env.PORT || 4000, "0.0.0.0", () => {
