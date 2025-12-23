@@ -16,6 +16,7 @@ import {
   rejectMatch,
   listInvites,
   getBadgeCounts,
+  addMatchVideoLink,
 } from "../controllers/matches.controller.js";
 
 const router = Router();
@@ -28,6 +29,7 @@ router.post("/invite", requireAuth, createInvite);
 router.post("/:match_id/accept", requireAuth, acceptInvite);
 router.post("/:match_id/cancel", requireAuth, cancelMatch);
 router.post("/:match_id/submit-score", requireAuth, submitMatchScore);
+router.post("/:matchId/video", requireAuth, addMatchVideoLink);
 
 // READ (specific → generic)
 router.get("/pending", requireAuth, getPendingMatches);
