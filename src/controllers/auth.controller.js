@@ -41,3 +41,18 @@ export const checkUsername = async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 };
+
+export const resendConfirmationEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const result = await authService.resendConfirmationEmail(email);
+
+    if (result.error) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
