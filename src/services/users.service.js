@@ -109,8 +109,16 @@ export const searchUsernames = async (query, options = {}) => {
 };
 
 // ---------------- SEARCH USERS ----------------
-export const searchUsers = async (query, gender, options = {}) => {
+export const searchUsers = async (query, gender, options = {}, client = supabase) => {
   const trimmedQuery = query?.trim();
+  const validDisciplines = ["singles", "doubles"];
+  const discipline = (options.discipline || "singles").toLowerCase();
+
+  if (!validDisciplines.includes(discipline)) {
+    return { error: "Invalid discipline" };
+  }
+
+  const ratingColumn = discipline === "doubles" ? "doubles_elo" : "singles_elo";
 
   const page = Math.max(Number(options.page) || 1, 1);
   const limit = Math.min(Math.max(Number(options.limit) || 10, 1), 25);
@@ -120,11 +128,11 @@ export const searchUsers = async (query, gender, options = {}) => {
     return { results: [], page, hasMore: false };
   }
 
-  let supabaseQuery = supabase
+  let supabaseQuery = client
     .from("users")
     .select("auth_id, username, gender, singles_elo, doubles_elo, overall_elo")
     .ilike("username", `%${trimmedQuery}%`)
-    .order("singles_elo", { ascending: false })
+    .order(ratingColumn, { ascending: false })
     .range(offset, offset + limit);
 
   if (gender) {
