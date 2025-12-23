@@ -25,7 +25,19 @@ export const createMatch = async (req, res) => {
 export const createInvite = async (req, res) => {
   try {
     const created_by = req.user?.auth_id || req.authUser?.auth_id;
-    const result = await matchesService.createInvite(req.body, created_by);
+    const { created_by: payloadCreator, ...invitePayload } = req.body || {};
+
+    if (!created_by) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    if (payloadCreator && payloadCreator !== created_by) {
+      return res
+        .status(400)
+        .json({ error: "created_by is derived from the authenticated user" });
+    }
+
+    const result = await matchesService.createInvite(invitePayload, created_by);
 
     if (result?.error) {
       const status = result.status || 400;
