@@ -7,7 +7,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || "service-role";
 
 const leaderboardModule = await import("./leaderboard.service.js");
-const { getLeaderboard } = leaderboardModule;
+const { getLeaderboard, getOverallLeaderboard } = leaderboardModule;
 
 class QueryBuilder {
   constructor(db, table) {
@@ -66,11 +66,24 @@ class QueryBuilder {
 
 class SupabaseMock {
   constructor(seed) {
-    this.tables = seed;
+    this.tables = seed.tables ?? seed;
+    this.rpcResponses = seed.rpcResponses || {};
+    this.rpcCalls = [];
   }
 
   from(table) {
     return new QueryBuilder(this, table);
+  }
+
+  rpc(fnName, params) {
+    this.rpcCalls.push({ fnName, params });
+    const responder = this.rpcResponses[fnName];
+
+    if (typeof responder === "function") {
+      return Promise.resolve(responder(params));
+    }
+
+    return Promise.resolve({ data: [], error: null });
   }
 }
 
@@ -112,4 +125,40 @@ test("getLeaderboard validates discipline", async () => {
   const result = await getLeaderboard("mixed", "triples", supabaseMock);
 
   assert.deepEqual(result, { error: "Invalid discipline" });
+});
+
+test("getOverallLeaderboard delegates to RPC and maps pagination", async () => {
+  const supabaseMock = new SupabaseMock({
+    tables: {},
+    rpcResponses: {
+      get_overall_leaderboard: () => ({
+        data: [
+          {
+            auth_id: "player-a",
+            username: "Alice",
+            overall_elo: 1400,
+            overall_rank: 1,
+            singles_elo: 1380,
+            doubles_elo: 1420,
+            singles_matches_played: 10,
+            doubles_matches_played: 8,
+          },
+        ],
+        error: null,
+      }),
+    },
+  });
+
+  const result = await getOverallLeaderboard({ limit: "5", offset: "10" }, supabaseMock);
+
+  assert.equal(result.limit, 5);
+  assert.equal(result.offset, 10);
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].auth_id, "player-a");
+  assert.deepEqual(supabaseMock.rpcCalls, [
+    {
+      fnName: "get_overall_leaderboard",
+      params: { p_limit: 5, p_offset: 10 },
+    },
+  ]);
 });

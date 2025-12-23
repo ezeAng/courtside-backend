@@ -27,6 +27,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/matches", matchRoutes);
 app.use("/api/matchmaking", matchmakingRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
+app.use("/api/leaderboards", leaderboardRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api", feedbackRoutes);

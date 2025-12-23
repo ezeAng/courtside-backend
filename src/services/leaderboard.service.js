@@ -41,3 +41,23 @@ export const getLeaderboard = async (gender, discipline = "singles", client = su
     })),
   };
 };
+
+export const getOverallLeaderboard = async (options = {}, client = supabase) => {
+  const limit = Number(options.limit) || 100;
+  const offset = Number(options.offset) || 0;
+
+  const { data, error } = await client.rpc("get_overall_leaderboard", {
+    p_limit: limit,
+    p_offset: offset,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return {
+    items: data ?? [],
+    limit,
+    offset,
+  };
+};

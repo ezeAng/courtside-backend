@@ -123,10 +123,16 @@ class SupabaseMock {
       users: seed.users,
       elo_history: seed.elo_history ?? [],
     };
+    this.rpcCalls = [];
   }
 
   from(table) {
     return new QueryBuilder(this, table);
+  }
+
+  rpc(fnName, params) {
+    this.rpcCalls.push({ fnName, params });
+    return Promise.resolve({ data: null, error: null });
   }
 }
 
@@ -182,6 +188,11 @@ test("confirmMatch updates singles elo and history with discipline", async () =>
   assert.equal(match.status, "confirmed");
   assert.equal(match.elo_change_side_a, 16);
   assert.equal(match.elo_change_side_b, -16);
+
+  assert.deepEqual(supabaseMock.rpcCalls, [
+    { fnName: "update_overall_elo", params: { p_auth_id: "player-a" } },
+    { fnName: "update_overall_elo", params: { p_auth_id: "player-b" } },
+  ]);
 });
 
 test("confirmMatch updates doubles elo_doubles and history", async () => {
@@ -234,6 +245,13 @@ test("confirmMatch updates doubles elo_doubles and history", async () => {
   supabaseMock.tables.elo_history.forEach((row) => {
     assert.equal(row.discipline, "doubles");
   });
+
+  assert.deepEqual(supabaseMock.rpcCalls, [
+    { fnName: "update_overall_elo", params: { p_auth_id: "player-a" } },
+    { fnName: "update_overall_elo", params: { p_auth_id: "player-b" } },
+    { fnName: "update_overall_elo", params: { p_auth_id: "player-c" } },
+    { fnName: "update_overall_elo", params: { p_auth_id: "player-d" } },
+  ]);
 });
 
 test("confirmMatch prevents confirming an already confirmed match", async () => {

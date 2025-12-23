@@ -154,7 +154,7 @@ export const getUserProfileWithStats = async (username) => {
   const { data: user, error: userError } = await supabase
     .from("users")
     .select(
-      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, elo"
+      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, elo, overall_elo"
     )
     .eq("username", normalizedUsername)
     .maybeSingle();
@@ -188,6 +188,21 @@ export const getUserProfileWithStats = async (username) => {
     return { error: totalMatchesResult.error.message, status: 400 };
   }
 
+  let overallRank = null;
+
+  if (user.overall_elo !== undefined && user.overall_elo !== null) {
+    const { count: higherOverallCount, error: overallRankError } = await supabase
+      .from("users")
+      .select("auth_id", { count: "exact", head: true })
+      .gt("overall_elo", user.overall_elo);
+
+    if (overallRankError) {
+      return { error: overallRankError.message, status: 400 };
+    }
+
+    overallRank = (higherOverallCount ?? 0) + 1;
+  }
+
   const tierInfo = buildTierInfo(user.elo ?? 0);
   const bestMatch =
     bestMatchResult.data && bestMatchResult.data.length > 0
@@ -203,6 +218,10 @@ export const getUserProfileWithStats = async (username) => {
       best_match: bestMatch,
       total_matches: totalMatchesResult.count ?? 0,
       matches_this_week: 0,
+      overall: {
+        elo: user.overall_elo ?? null,
+        rank: overallRank,
+      },
     },
   };
 };
