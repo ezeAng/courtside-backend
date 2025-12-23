@@ -1,11 +1,19 @@
 import { supabase } from "../config/supabase.js";
 import { parseScore } from "./scoreParser.service.js";
-import {
-  calculateEloDoubles,
-  calculateEloDrawDoubles,
-  calculateEloDrawSingles,
-  calculateEloSingles,
-} from "./elo.service.js";
+
+const DEFAULT_ELO = 1000;
+const K_SINGLES = 32;
+const K_DOUBLES = 32;
+
+const expectedScore = (playerElo, opponentElo) =>
+  1 / (1 + 10 ** ((opponentElo - playerElo) / 400));
+const avg = (nums = []) => {
+  if (!Array.isArray(nums) || nums.length === 0) {
+    return 0;
+  }
+  return nums.reduce((sum, value) => sum + value, 0) / nums.length;
+};
+const roundDelta = (value) => Math.round(value);
 
 const buildError = (message, status = 400) => {
   const err = new Error(message);
@@ -69,6 +77,20 @@ const normalizeScoreInput = (scoreInput) => {
 const determineWinnerTeam = (players) => {
   const winnerPlayer = players.find((p) => p.is_winner);
   return winnerPlayer ? winnerPlayer.team : null;
+};
+
+const determineWinnerFromScore = (score) => {
+  const parsed = typeof score === "string" ? parseScore(score) : score;
+
+  if (parsed.is_draw) {
+    return { winnerSide: null, is_draw: true };
+  }
+
+  if (!parsed.winner_team) {
+    throw buildError("Winner could not be determined from score", 400);
+  }
+
+  return { winnerSide: parsed.winner_team, is_draw: false };
 };
 
 const loadMatchWithPlayers = async (matchId, client = supabase) => {
@@ -704,90 +726,11 @@ export const getPendingMatches = async (userId) => {
   return { incoming, outgoing };
 };
 
-const buildEloUpdates = (match, matchPlayers, players, parsedScore) => {
-  const playersTeamA = matchPlayers.filter((p) => p.team === "A").map((p) => p.auth_id);
-  const playersTeamB = matchPlayers.filter((p) => p.team === "B").map((p) => p.auth_id);
-  const outcome = parsedScore || parseScore(match.score || "");
-  const winner_team = outcome.winner_team || null;
-  const is_draw = outcome.is_draw || !winner_team;
-
-  const eloMap = new Map(players.map((p) => [p.auth_id, p.elo ?? 1000]));
-  const getElo = (userId) => eloMap.get(userId) ?? 1000;
-
-  let updates = [];
-  let teamA_delta = null;
-  let teamB_delta = null;
-
-  if (match.match_type === "singles") {
-    const [playerA] = playersTeamA;
-    const [playerB] = playersTeamB;
-
-    if (!playerA || !playerB) {
-      throw buildError("Singles match requires two players", 400);
-    }
-
-    const calculations = is_draw
-      ? calculateEloDrawSingles(getElo(playerA), getElo(playerB))
-      : calculateEloSingles(getElo(playerA), getElo(playerB), winner_team);
-
-    teamA_delta = calculations.teamA[0].new - calculations.teamA[0].old;
-    teamB_delta = calculations.teamB[0].new - calculations.teamB[0].old;
-
-    updates = [
-      {
-        playerId: playerA,
-        oldElo: calculations.teamA[0].old,
-        newElo: calculations.teamA[0].new,
-      },
-      {
-        playerId: playerB,
-        oldElo: calculations.teamB[0].old,
-        newElo: calculations.teamB[0].new,
-      },
-    ];
-  } else if (match.match_type === "doubles") {
-    if (playersTeamA.length !== 2 || playersTeamB.length !== 2) {
-      throw buildError("Doubles match requires two players per team", 400);
-    }
-
-    const calculations = is_draw
-      ? calculateEloDrawDoubles(
-          playersTeamA.map((id) => getElo(id)),
-          playersTeamB.map((id) => getElo(id))
-        )
-      : calculateEloDoubles(
-          playersTeamA.map((id) => getElo(id)),
-          playersTeamB.map((id) => getElo(id)),
-          winner_team
-        );
-
-    teamA_delta = calculations.teamA[0].new - calculations.teamA[0].old;
-    teamB_delta = calculations.teamB[0].new - calculations.teamB[0].old;
-
-    updates = [
-      ...playersTeamA.map((playerId, idx) => ({
-        playerId,
-        oldElo: calculations.teamA[idx].old,
-        newElo: calculations.teamA[idx].new,
-      })),
-      ...playersTeamB.map((playerId, idx) => ({
-        playerId,
-        oldElo: calculations.teamB[idx].old,
-        newElo: calculations.teamB[idx].new,
-      })),
-    ];
-  } else {
-    throw buildError("Unsupported match type", 400);
-  }
-
-  return { updates, teamA_delta, teamB_delta };
-};
-
-const getRankForElo = async (client, eloValue) => {
+const getRankForElo = async (client, eloValue, column = "elo") => {
   const { count, error } = await client
     .from("users")
     .select("auth_id", { count: "exact", head: true })
-    .gt("elo", eloValue ?? 0);
+    .gt(column, eloValue ?? 0);
 
   if (error) throw buildError(error.message, 400);
 
@@ -802,7 +745,7 @@ const buildUpsetDetails = (winner_team, matchPlayers, eloMap) => {
 
   const average = (ids) => {
     if (ids.length === 0) return null;
-    const total = ids.reduce((sum, id) => sum + (eloMap.get(id) ?? 1000), 0);
+    const total = ids.reduce((sum, id) => sum + (eloMap.get(id) ?? DEFAULT_ELO), 0);
     return total / ids.length;
   };
 
@@ -831,7 +774,9 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
     .single();
 
   if (loadErr || !match) throw buildError("Match not found", 404);
-  if (match.status !== "pending") throw buildError("Match already processed", 400);
+  if (match.status === "confirmed") throw buildError("Match already confirmed", 409);
+  if (!["pending", "invite"].includes(match.status))
+    throw buildError("Match already processed", 400);
   if (
     Array.isArray(match.needs_confirmation_from_list) &&
     !match.needs_confirmation_from_list.includes(userId)
@@ -865,6 +810,45 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
     throw buildError("Confirmation must come from the opposing team", 403);
   }
 
+  const discipline = match.discipline || match.match_type || "singles";
+
+  if (match.match_type && match.discipline && match.match_type !== match.discipline) {
+    throw buildError("Match type and discipline mismatch", 400);
+  }
+
+  const matchTeamA = Array.isArray(match.team_a_auth_ids) ? match.team_a_auth_ids.filter(Boolean) : [];
+  const matchTeamB = Array.isArray(match.team_b_auth_ids) ? match.team_b_auth_ids.filter(Boolean) : [];
+
+  const playersTeamA = matchPlayers.filter((p) => p.team === "A").map((p) => p.auth_id);
+  const playersTeamB = matchPlayers.filter((p) => p.team === "B").map((p) => p.auth_id);
+
+  const teamA = matchTeamA.length > 0 ? matchTeamA : playersTeamA;
+  const teamB = matchTeamB.length > 0 ? matchTeamB : playersTeamB;
+
+  if (discipline === "doubles") {
+    if (teamA.length !== 2 || teamB.length !== 2) {
+      throw buildError("Doubles match requires two players per team", 400);
+    }
+  } else if (discipline === "singles") {
+    if (teamA.length !== 1 || teamB.length !== 1) {
+      throw buildError("Singles match requires one player per team", 400);
+    }
+  }
+
+  const participants = [...teamA, ...teamB];
+  const participantsSet = new Set(participants);
+
+  if (participantsSet.size !== participants.length) {
+    throw buildError("Duplicate players detected across teams", 400);
+  }
+
+  const matchParticipantSet = new Set(playerIds);
+  for (const participant of participantsSet) {
+    if (!matchParticipantSet.has(participant)) {
+      throw buildError("Player is not registered for this match", 400);
+    }
+  }
+
   let parsedScore;
 
   try {
@@ -873,28 +857,66 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
     throw buildError(err.message, 400);
   }
 
+  const { winnerSide, is_draw } = determineWinnerFromScore(parsedScore);
+
   const { data: players, error: usersError } = await client
     .from("users")
-    .select("auth_id, elo")
-    .in("auth_id", playerIds);
+    .select("auth_id, elo, elo_doubles")
+    .in("auth_id", participants);
 
   if (usersError) throw buildError(usersError.message, 400);
+  const users = players || [];
+  const usersMap = new Map(users.map((p) => [p.auth_id, p]));
+
+  if (!participants.every((id) => usersMap.has(id))) {
+    throw buildError("User not found for one or more participants", 400);
+  }
+
+  const ratingColumn = discipline === "doubles" ? "elo_doubles" : "elo";
+  const eloMap = new Map(
+    participants.map((id) => [id, usersMap.get(id)?.[ratingColumn] ?? DEFAULT_ELO])
+  );
 
   const preMatchRanks = new Map();
-  const eloMap = new Map((players || []).map((p) => [p.auth_id, p.elo ?? 1000]));
 
-  for (const playerId of playerIds) {
-    const rank = await getRankForElo(client, eloMap.get(playerId));
+  for (const playerId of participants) {
+    const rank = await getRankForElo(client, eloMap.get(playerId), ratingColumn);
     preMatchRanks.set(playerId, rank);
   }
 
-  const updateResult = buildEloUpdates(match, matchPlayers, players || [], parsedScore);
+  const scoreA = is_draw ? 0.5 : winnerSide === "A" ? 1 : 0;
+  const scoreB = is_draw ? 0.5 : 1 - scoreA;
 
-  for (const update of updateResult.updates) {
+  const teamARating =
+    discipline === "doubles"
+      ? avg(teamA.map((id) => eloMap.get(id) ?? DEFAULT_ELO))
+      : eloMap.get(teamA[0]) ?? DEFAULT_ELO;
+  const teamBRating =
+    discipline === "doubles"
+      ? avg(teamB.map((id) => eloMap.get(id) ?? DEFAULT_ELO))
+      : eloMap.get(teamB[0]) ?? DEFAULT_ELO;
+
+  const expectedA = expectedScore(teamARating, teamBRating);
+  const kFactor = discipline === "doubles" ? K_DOUBLES : K_SINGLES;
+  const deltaA = roundDelta(kFactor * (scoreA - expectedA));
+  const deltaB = -deltaA;
+
+  const teamAUpdates = teamA.map((auth_id) => {
+    const old_elo = eloMap.get(auth_id) ?? DEFAULT_ELO;
+    return { auth_id, old_elo, new_elo: old_elo + deltaA };
+  });
+  const teamBUpdates = teamB.map((auth_id) => {
+    const old_elo = eloMap.get(auth_id) ?? DEFAULT_ELO;
+    return { auth_id, old_elo, new_elo: old_elo + deltaB };
+  });
+
+  const updates = [...teamAUpdates, ...teamBUpdates];
+
+  for (const update of updates) {
     const { error: updateErr } = await client
       .from("users")
-      .update({ elo: update.newElo })
-      .eq("auth_id", update.playerId);
+      .update({ [ratingColumn]: update.new_elo })
+      .eq("auth_id", update.auth_id);
 
     if (updateErr) throw buildError(updateErr.message, 400);
   }
@@ -902,11 +924,12 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
   const confirmedAt = new Date().toISOString();
   const playedAt = match.played_at ?? confirmedAt;
 
-  const eloHistoryRows = updateResult.updates.map((update) => ({
-    auth_id: update.playerId,
+  const eloHistoryRows = updates.map((update) => ({
+    auth_id: update.auth_id,
     match_id: matchId,
-    old_elo: update.oldElo,
-    new_elo: update.newElo,
+    old_elo: update.old_elo,
+    new_elo: update.new_elo,
+    discipline,
     created_at: playedAt,
   }));
 
@@ -923,8 +946,8 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
     .update({
       status: "confirmed",
       confirmed_at: confirmedAt,
-      elo_change_side_a: updateResult.teamA_delta ?? null,
-      elo_change_side_b: updateResult.teamB_delta ?? null,
+      elo_change_side_a: deltaA,
+      elo_change_side_b: deltaB,
     })
     .eq("match_id", matchId);
 
@@ -932,12 +955,12 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
 
   const rankChanges = [];
 
-  for (const update of updateResult.updates) {
-    const newRank = await getRankForElo(client, update.newElo);
-    const previousRank = preMatchRanks.get(update.playerId) ?? null;
+  for (const update of updates) {
+    const newRank = await getRankForElo(client, update.new_elo, ratingColumn);
+    const previousRank = preMatchRanks.get(update.auth_id) ?? null;
 
     rankChanges.push({
-      playerId: update.playerId,
+      playerId: update.auth_id,
       previousRank,
       newRank,
       rankChange: previousRank && newRank ? previousRank - newRank : null,
@@ -955,7 +978,15 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
     matchId,
     status: "confirmed",
     confirmed_at: confirmedAt,
-    updated_elos: updateResult,
+    discipline,
+    elo_change_side_a: deltaA,
+    elo_change_side_b: deltaB,
+    updated_elos: {
+      sideA: teamAUpdates,
+      sideB: teamBUpdates,
+      teamA_delta: deltaA,
+      teamB_delta: deltaB,
+    },
     ranks: rankChanges,
     upset: upsetDetails,
   };
