@@ -57,7 +57,8 @@ export const signup = async (email, username, password, gender) => {
     await supabaseAdmin.auth.admin.createUser({
       email: normalizedEmail,
       password,
-      email_confirm: true,
+      // Leave email_confirm false to allow Supabase to send a confirmation email
+      email_confirm: false,
       user_metadata: { username: normalizedUsername, gender },
     });
 
@@ -142,4 +143,37 @@ export const checkUsername = async (username) => {
   }
 
   return { error: "Unexpected error checking username" };
+};
+
+export const resendConfirmationEmail = async (email) => {
+  const normalizedEmail = normalizeIdentifier(email);
+
+  if (!normalizedEmail) {
+    return { error: "Email is required" };
+  }
+
+  const { data: existingUser, error: lookupError } = await supabaseAdmin
+    .from("users")
+    .select("auth_id")
+    .eq("email", normalizedEmail)
+    .maybeSingle();
+
+  if (lookupError && lookupError.code !== "PGRST116") {
+    return { error: lookupError.message };
+  }
+
+  if (!existingUser) {
+    return { error: "User not found" };
+  }
+
+  const { error: resendError } = await supabaseClient.auth.resend({
+    type: "signup",
+    email: normalizedEmail,
+  });
+
+  if (resendError) {
+    return { error: resendError.message };
+  }
+
+  return { message: "Confirmation email resent" };
 };
