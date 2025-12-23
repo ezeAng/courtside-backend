@@ -1,16 +1,25 @@
 import { supabase } from "../config/supabase.js";
 
-export const getLeaderboard = async (gender) => {
+export const getLeaderboard = async (gender, discipline = "singles", client = supabase) => {
   const validGenders = ["male", "female", "mixed"];
+  const validDisciplines = ["singles", "doubles"];
 
   if (!gender || !validGenders.includes(gender)) {
     return { error: "Invalid gender" };
   }
 
-  let query = supabase
+  if (!discipline || !validDisciplines.includes(discipline)) {
+    return { error: "Invalid discipline" };
+  }
+
+  const ratingColumn = discipline === "doubles" ? "elo_doubles" : "elo";
+
+  let query = client
     .from("users")
-    .select("auth_id, username, gender, elo, profile_image_url")
-    .order("elo", { ascending: false })
+    .select(
+      "auth_id, username, gender, elo, elo_doubles, profile_image_url"
+    )
+    .order(ratingColumn, { ascending: false })
     .limit(100);
 
   if (gender !== "mixed") {
@@ -25,6 +34,10 @@ export const getLeaderboard = async (gender) => {
 
   return {
     gender,
-    leaders: data || [],
+    discipline,
+    leaders: (data || []).map((leader) => ({
+      ...leader,
+      rating: leader[ratingColumn],
+    })),
   };
 };
