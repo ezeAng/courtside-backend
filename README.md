@@ -63,7 +63,7 @@ The API listens on `PORT` and exposes a health check at `GET /` that returns `{ 
 
 | Method | Path | Description | Notes |
 | --- | --- | --- | --- |
-| `GET` | `/:gender` | Return up to 100 users ordered by ELO. | `gender` must be `male`, `female`, or `mixed` (`mixed` returns all genders). |
+| `GET` | `/:gender` | Return up to 100 users ordered by ELO. | `gender` must be `male`, `female`, or `mixed` (`mixed` returns all genders). Supports `?discipline=singles|doubles` (defaults to `singles`). |
 
 ## Business logic highlights
 
