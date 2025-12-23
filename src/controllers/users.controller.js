@@ -133,7 +133,7 @@ export const getHomeStats = async (req, res) => {
     const overall = overallResult && !overallResult.error ? overallResult : null;
 
     stats.overall = {
-      elo: overall?.overall_elo ?? null,
+      overall_elo: overall?.overall_elo ?? null,
       rank: overall?.overall_rank ?? null,
     };
 
@@ -146,11 +146,11 @@ export const getHomeStats = async (req, res) => {
 export const getCardData = async (req, res) => {
   try {
     const user_id = req.user.auth_id;
-    // Fetch user profile + elo
+    // Fetch user profile + ratings (overall/singles/doubles)
     const { data: user, error: userErr } = await supabase
       .from("users")
       .select(
-        "username, gender, region, bio, profile_image_url, avatar, elo"
+        "username, gender, region, bio, profile_image_url, avatar, singles_elo, doubles_elo, overall_elo"
       )
       .eq("auth_id", user_id)
       .single();
@@ -194,14 +194,15 @@ export const getCardData = async (req, res) => {
     
     // Tier calculation
 
+    const displayElo = user.overall_elo ?? user.singles_elo ?? 0;
     let tier = "Bronze";
-    if (user.elo >= 900 && user.elo < 1100) tier = "Silver";
-    if (user.elo >= 1100 && user.elo < 1300) tier = "Gold";
-    if (user.elo >= 1300 && user.elo < 1500) tier = "Platinum";
-    if (user.elo >= 1500) tier = "Diamond";
+    if (displayElo >= 900 && displayElo < 1100) tier = "Silver";
+    if (displayElo >= 1100 && displayElo < 1300) tier = "Gold";
+    if (displayElo >= 1300 && displayElo < 1500) tier = "Platinum";
+    if (displayElo >= 1500) tier = "Diamond";
     
     // Star rating (1–5)
-    let star_rating = Math.max(1, Math.min(5, Math.round(user.elo / 300)));
+    let star_rating = Math.max(1, Math.min(5, Math.round(displayElo / 300)));
     
     const result = {
       success: true,
@@ -212,7 +213,9 @@ export const getCardData = async (req, res) => {
         bio: user.bio,
         profile_image_url: user.profile_image_url,
         avatar: user.avatar,
-        elo: user.elo,
+        singles_elo: user.singles_elo,
+        doubles_elo: user.doubles_elo,
+        overall_elo: user.overall_elo,
         tier,
         star_rating,
         win_rate_last_10: winRate ?? 0,

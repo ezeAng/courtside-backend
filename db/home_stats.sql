@@ -9,8 +9,8 @@ LANGUAGE plpgsql STABLE AS $$
 DECLARE
   user_gender TEXT;
 BEGIN
-  -- Get current Elo and gender
-  SELECT u.elo, u.gender INTO current_elo, user_gender
+  -- Get current singles ELO and gender
+  SELECT u.singles_elo, u.gender INTO current_elo, user_gender
   FROM users u
   WHERE u.auth_id = user_auth_id;
 
@@ -18,12 +18,12 @@ BEGIN
     RAISE EXCEPTION 'User not found for auth_id %', user_auth_id;
   END IF;
 
-  -- Rank: count how many users have higher elo in same gender category
+  -- Rank: count how many users have higher singles_elo in same gender category
   SELECT 1 + COUNT(*)
   INTO rank
   FROM users
   WHERE gender = user_gender
-    AND elo > current_elo;
+    AND singles_elo > current_elo;
 
   -- Matches this week: last 7 days
   SELECT COUNT(*)

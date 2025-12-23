@@ -90,8 +90,8 @@ class SupabaseMock {
 test("getLeaderboard returns singles leaderboard by default", async () => {
   const supabaseMock = new SupabaseMock({
     users: [
-      { auth_id: "a", username: "Alice", gender: "female", elo: 1200, elo_doubles: 1100, profile_image_url: null },
-      { auth_id: "b", username: "Bob", gender: "male", elo: 1300, elo_doubles: 1250, profile_image_url: null },
+      { auth_id: "a", username: "Alice", gender: "female", singles_elo: 1200, doubles_elo: 1100, profile_image_url: null },
+      { auth_id: "b", username: "Bob", gender: "male", singles_elo: 1300, doubles_elo: 1250, profile_image_url: null },
     ],
   });
 
@@ -106,8 +106,8 @@ test("getLeaderboard returns singles leaderboard by default", async () => {
 test("getLeaderboard returns doubles leaderboard when requested", async () => {
   const supabaseMock = new SupabaseMock({
     users: [
-      { auth_id: "a", username: "Alice", gender: "female", elo: 1200, elo_doubles: 1400, profile_image_url: null },
-      { auth_id: "b", username: "Bob", gender: "male", elo: 1300, elo_doubles: 1350, profile_image_url: null },
+      { auth_id: "a", username: "Alice", gender: "female", singles_elo: 1200, doubles_elo: 1400, profile_image_url: null },
+      { auth_id: "b", username: "Bob", gender: "male", singles_elo: 1300, doubles_elo: 1350, profile_image_url: null },
     ],
   });
 

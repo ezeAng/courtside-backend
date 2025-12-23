@@ -30,7 +30,8 @@ const buildPlayers = (players, userMap) => {
         auth_id: player.auth_id,
         username: user.username || null,
         gender: user.gender || null,
-        elo: user.elo ?? null,
+        singles_elo: user.singles_elo ?? null,
+        doubles_elo: user.doubles_elo ?? null,
       };
 
       if (player.team === "A") {
@@ -160,7 +161,7 @@ const fetchPlayersWithUsers = async (matchIds) => {
 
   const { data: usersData, error: usersError } = await supabase
     .from("users")
-    .select("auth_id, username, gender, elo")
+    .select("auth_id, username, gender, singles_elo, doubles_elo")
     .in("auth_id", authIds);
 
   if (usersError) {
@@ -728,7 +729,7 @@ export const getPendingMatches = async (userId) => {
   return { incoming, outgoing };
 };
 
-const getRankForElo = async (client, eloValue, column = "elo") => {
+const getRankForElo = async (client, eloValue, column = "singles_elo") => {
   const { count, error } = await client
     .from("users")
     .select("auth_id", { count: "exact", head: true })
@@ -863,7 +864,7 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
 
   const { data: players, error: usersError } = await client
     .from("users")
-    .select("auth_id, elo, elo_doubles")
+    .select("auth_id, singles_elo, doubles_elo")
     .in("auth_id", participants);
 
   if (usersError) throw buildError(usersError.message, 400);
@@ -874,7 +875,7 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
     throw buildError("User not found for one or more participants", 400);
   }
 
-  const ratingColumn = discipline === "doubles" ? "elo_doubles" : "elo";
+  const ratingColumn = discipline === "doubles" ? "doubles_elo" : "singles_elo";
   const eloMap = new Map(
     participants.map((id) => [id, usersMap.get(id)?.[ratingColumn] ?? DEFAULT_ELO])
   );

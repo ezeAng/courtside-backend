@@ -62,10 +62,17 @@ export const calculateEloDrawDoubles = (teamA_elo_array, teamB_elo_array) => {
   };
 };
 
-export const updatePlayerElo = async (auth_id, old_elo, new_elo, match_id) => {
+export const updatePlayerElo = async (
+  auth_id,
+  old_elo,
+  new_elo,
+  match_id,
+  ratingColumn = "singles_elo",
+  discipline = "singles"
+) => {
   const { error: updateError } = await supabase
     .from("users")
-    .update({ elo: new_elo })
+    .update({ [ratingColumn]: new_elo })
     .eq("auth_id", auth_id);
 
   if (updateError) {
@@ -78,6 +85,7 @@ export const updatePlayerElo = async (auth_id, old_elo, new_elo, match_id) => {
       match_id,
       old_elo,
       new_elo,
+      discipline,
     },
   ]);
 
@@ -89,6 +97,9 @@ export const updatePlayerElo = async (auth_id, old_elo, new_elo, match_id) => {
 export const resolveMatchElo = async (matchRecord) => {
   const { match_id, match_type, players_team_A, players_team_B, winner_team } = matchRecord;
 
+  const ratingColumn = match_type === "doubles" ? "doubles_elo" : "singles_elo";
+  const discipline = match_type === "doubles" ? "doubles" : "singles";
+
   const allPlayerIds = [...players_team_A, ...players_team_B];
   if (allPlayerIds.length === 0) {
     return [];
@@ -96,7 +107,7 @@ export const resolveMatchElo = async (matchRecord) => {
 
   const { data: usersData, error: usersError } = await supabase
     .from("users")
-    .select("auth_id, elo")
+    .select("auth_id, singles_elo, doubles_elo")
     .in("auth_id", allPlayerIds);
 
   if (usersError) {
@@ -105,7 +116,9 @@ export const resolveMatchElo = async (matchRecord) => {
 
   const users = usersData || [];
 
-  const eloMap = new Map(users.map((u) => [u.auth_id, u.elo ?? 1000]));
+  const eloMap = new Map(
+    users.map((u) => [u.auth_id, u[ratingColumn] ?? 1000])
+  );
   const getElo = (userId) => eloMap.get(userId) ?? 1000;
 
   let calculations;
@@ -127,14 +140,14 @@ export const resolveMatchElo = async (matchRecord) => {
   for (let i = 0; i < players_team_A.length; i += 1) {
     const auth_id = players_team_A[i];
     const { old, new: newElo } = calculations.teamA[i];
-    await updatePlayerElo(auth_id, old, newElo, match_id);
+    await updatePlayerElo(auth_id, old, newElo, match_id, ratingColumn, discipline);
     eloUpdates.push({ auth_id, old_elo: old, new_elo: newElo });
   }
 
   for (let i = 0; i < players_team_B.length; i += 1) {
     const auth_id = players_team_B[i];
     const { old, new: newElo } = calculations.teamB[i];
-    await updatePlayerElo(auth_id, old, newElo, match_id);
+    await updatePlayerElo(auth_id, old, newElo, match_id, ratingColumn, discipline);
     eloUpdates.push({ auth_id, old_elo: old, new_elo: newElo });
   }
 
