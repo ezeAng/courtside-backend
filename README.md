@@ -51,6 +51,7 @@ The API listens on `PORT` and exposes a health check at `GET /` that returns `{ 
 
 | Method | Path | Auth? | Description | Request body/query |
 | --- | --- | --- | --- | --- |
+| `POST` | `/invite` | ✅ | Create a match invite where the creator is taken from the authenticated user; players must include that user. | JSON: `{ mode: "singles"|"doubles", players: [{ auth_id, team: "A"|"B" }, ...] }` |
 | `POST` | `/create` | ✅ | Create a match with teams, score text (e.g., `6-4,6-3`), and optional winner. Score is parsed to determine the winner; confirmation is requested from other participants. | JSON: `{ match_type: "singles"|"doubles", players_team_A: [authId...], players_team_B: [authId...], winner_team?: "A"|"B", score: "setA-setB,...", played_at?: ISO }` |
 | `GET` | `/pending` | ✅ | Retrieve matches awaiting confirmation for the requester (incoming) and matches the requester submitted (outgoing). | – |
 | `GET` | `/user/:auth_id` | ❌ | Get all matches involving a specific user, including player details and winner. | Path: `auth_id` |
