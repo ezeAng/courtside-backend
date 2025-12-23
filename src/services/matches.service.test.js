@@ -136,7 +136,7 @@ class SupabaseMock {
   }
 }
 
-test("confirmMatch updates singles elo and history with discipline", async () => {
+test("confirmMatch updates singles singles_elo and history with discipline", async () => {
   const playedAt = "2024-01-01T00:00:00.000Z";
   const supabaseMock = new SupabaseMock({
     matches: [
@@ -158,8 +158,8 @@ test("confirmMatch updates singles elo and history with discipline", async () =>
       { match_id: "match-1", auth_id: "player-b", team: "B", is_winner: false },
     ],
     users: [
-      { auth_id: "player-a", elo: 1000, elo_doubles: 1000 },
-      { auth_id: "player-b", elo: 1000, elo_doubles: 1000 },
+      { auth_id: "player-a", singles_elo: 1000, doubles_elo: 1000 },
+      { auth_id: "player-b", singles_elo: 1000, doubles_elo: 1000 },
     ],
     elo_history: [],
   });
@@ -195,7 +195,7 @@ test("confirmMatch updates singles elo and history with discipline", async () =>
   ]);
 });
 
-test("confirmMatch updates doubles elo_doubles and history", async () => {
+test("confirmMatch updates doubles ratings and history", async () => {
   const supabaseMock = new SupabaseMock({
     matches: [
       {
@@ -217,10 +217,10 @@ test("confirmMatch updates doubles elo_doubles and history", async () => {
       { match_id: "match-2", auth_id: "player-d", team: "B", is_winner: false },
     ],
     users: [
-      { auth_id: "player-a", elo: 1000, elo_doubles: 1000 },
-      { auth_id: "player-b", elo: 1000, elo_doubles: 1000 },
-      { auth_id: "player-c", elo: 1000, elo_doubles: 1000 },
-      { auth_id: "player-d", elo: 1000, elo_doubles: 1000 },
+      { auth_id: "player-a", singles_elo: 1000, doubles_elo: 1000 },
+      { auth_id: "player-b", singles_elo: 1000, doubles_elo: 1000 },
+      { auth_id: "player-c", singles_elo: 1000, doubles_elo: 1000 },
+      { auth_id: "player-d", singles_elo: 1000, doubles_elo: 1000 },
     ],
     elo_history: [],
   });
@@ -233,7 +233,7 @@ test("confirmMatch updates doubles elo_doubles and history", async () => {
   assert.equal(result.elo_change_side_b, -16);
 
   const updatedUsers = supabaseMock.tables.users.reduce(
-    (acc, user) => ({ ...acc, [user.auth_id]: user.elo_doubles }),
+    (acc, user) => ({ ...acc, [user.auth_id]: user.doubles_elo }),
     {}
   );
 
@@ -274,8 +274,8 @@ test("confirmMatch prevents confirming an already confirmed match", async () => 
       { match_id: "match-3", auth_id: "player-b", team: "B", is_winner: false },
     ],
     users: [
-      { auth_id: "player-a", elo: 1000, elo_doubles: 1000 },
-      { auth_id: "player-b", elo: 1000, elo_doubles: 1000 },
+      { auth_id: "player-a", singles_elo: 1000, doubles_elo: 1000 },
+      { auth_id: "player-b", singles_elo: 1000, doubles_elo: 1000 },
     ],
     elo_history: [],
   });
@@ -309,9 +309,9 @@ test("confirmMatch validates doubles team requirements", async () => {
       { match_id: "match-4", auth_id: "player-c", team: "B", is_winner: false },
     ],
     users: [
-      { auth_id: "player-a", elo: 1000, elo_doubles: 1000 },
-      { auth_id: "player-b", elo: 1000, elo_doubles: 1000 },
-      { auth_id: "player-c", elo: 1000, elo_doubles: 1000 },
+      { auth_id: "player-a", singles_elo: 1000, doubles_elo: 1000 },
+      { auth_id: "player-b", singles_elo: 1000, doubles_elo: 1000 },
+      { auth_id: "player-c", singles_elo: 1000, doubles_elo: 1000 },
     ],
     elo_history: [],
   });

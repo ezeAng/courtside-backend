@@ -12,12 +12,12 @@ export const getLeaderboard = async (gender, discipline = "singles", client = su
     return { error: "Invalid discipline" };
   }
 
-  const ratingColumn = discipline === "doubles" ? "elo_doubles" : "elo";
+  const ratingColumn = discipline === "doubles" ? "doubles_elo" : "singles_elo";
 
   let query = client
     .from("users")
     .select(
-      "auth_id, username, gender, elo, elo_doubles, profile_image_url"
+      "auth_id, username, gender, singles_elo, doubles_elo, profile_image_url"
     )
     .order(ratingColumn, { ascending: false })
     .limit(100);

@@ -1,14 +1,14 @@
 import { supabase } from "../config/supabase.js";
 
-const buildTierInfo = (elo = 0) => {
+const buildTierInfo = (rating = 0) => {
   let tier = "Bronze";
 
-  if (elo >= 900 && elo < 1100) tier = "Silver";
-  if (elo >= 1100 && elo < 1300) tier = "Gold";
-  if (elo >= 1300 && elo < 1500) tier = "Platinum";
-  if (elo >= 1500) tier = "Diamond";
+  if (rating >= 900 && rating < 1100) tier = "Silver";
+  if (rating >= 1100 && rating < 1300) tier = "Gold";
+  if (rating >= 1300 && rating < 1500) tier = "Platinum";
+  if (rating >= 1500) tier = "Diamond";
 
-  const star_rating = Math.max(1, Math.min(5, Math.round(elo / 300)));
+  const star_rating = Math.max(1, Math.min(5, Math.round(rating / 300)));
 
   return { tier, star_rating };
 };
@@ -18,7 +18,7 @@ export const getProfile = async (auth_id) => {
   const { data, error } = await supabase
     .from("users")
     .select(
-      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, elo"
+      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo"
     )
     .eq("auth_id", auth_id)
     .single();
@@ -66,7 +66,7 @@ export const updateUserService = async (authId, updates) => {
     .update(filteredUpdates)
     .eq("auth_id", authId)
     .select(
-      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, elo"
+      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo"
     )
     .single();
 
@@ -87,7 +87,7 @@ export const searchUsernames = async (query, options = {}) => {
 
   let supabaseQuery = supabase
     .from("users")
-    .select("auth_id, username, profile_image_url, avatar, gender, elo")
+    .select("auth_id, username, profile_image_url, avatar, gender, singles_elo, doubles_elo, overall_elo")
     .ilike("username", `${trimmedQuery}%`)
     .order("username", { ascending: true })
     .limit(limit + 1);
@@ -122,9 +122,9 @@ export const searchUsers = async (query, gender, options = {}) => {
 
   let supabaseQuery = supabase
     .from("users")
-    .select("auth_id, username, gender, elo")
+    .select("auth_id, username, gender, singles_elo, doubles_elo, overall_elo")
     .ilike("username", `%${trimmedQuery}%`)
-    .order("elo", { ascending: false })
+    .order("singles_elo", { ascending: false })
     .range(offset, offset + limit);
 
   if (gender) {
@@ -154,7 +154,7 @@ export const getUserProfileWithStats = async (username) => {
   const { data: user, error: userError } = await supabase
     .from("users")
     .select(
-      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, elo, overall_elo"
+      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo"
     )
     .eq("username", normalizedUsername)
     .maybeSingle();
@@ -203,7 +203,8 @@ export const getUserProfileWithStats = async (username) => {
     overallRank = (higherOverallCount ?? 0) + 1;
   }
 
-  const tierInfo = buildTierInfo(user.elo ?? 0);
+  const primaryRating = user.overall_elo ?? user.singles_elo ?? 0;
+  const tierInfo = buildTierInfo(primaryRating);
   const bestMatch =
     bestMatchResult.data && bestMatchResult.data.length > 0
       ? bestMatchResult.data[0]
@@ -219,8 +220,13 @@ export const getUserProfileWithStats = async (username) => {
       total_matches: totalMatchesResult.count ?? 0,
       matches_this_week: 0,
       overall: {
-        elo: user.overall_elo ?? null,
+        overall_elo: user.overall_elo ?? null,
         rank: overallRank,
+      },
+      ratings: {
+        singles_elo: user.singles_elo ?? null,
+        doubles_elo: user.doubles_elo ?? null,
+        overall_elo: user.overall_elo ?? null,
       },
     },
   };
@@ -230,9 +236,9 @@ export const getUserProfileWithStats = async (username) => {
 export const listOtherUsers = async (auth_id) => {
   const { data, error } = await supabase
     .from("users")
-    .select("auth_id, username, gender, elo")
+    .select("auth_id, username, gender, singles_elo, doubles_elo, overall_elo")
     .neq("auth_id", auth_id)
-    .order("elo", { ascending: false });
+    .order("singles_elo", { ascending: false });
 
   if (error) {
     throw new Error(error.message);

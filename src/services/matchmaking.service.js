@@ -7,11 +7,11 @@ const sortByEloCloseness = (targetElo, players = []) => {
   return players
     .map((player) => ({
       ...player,
-      elo: player.elo ?? DEFAULT_ELO,
-      elo_gap: Math.abs((player.elo ?? DEFAULT_ELO) - targetElo),
+      singles_elo: player.singles_elo ?? DEFAULT_ELO,
+      elo_gap: Math.abs((player.singles_elo ?? DEFAULT_ELO) - targetElo),
     }))
     .sort((a, b) => {
-      if (a.elo_gap === b.elo_gap) return (b.elo ?? DEFAULT_ELO) - (a.elo ?? DEFAULT_ELO);
+      if (a.elo_gap === b.elo_gap) return (b.singles_elo ?? DEFAULT_ELO) - (a.singles_elo ?? DEFAULT_ELO);
       return a.elo_gap - b.elo_gap;
     });
 };
@@ -19,16 +19,16 @@ const sortByEloCloseness = (targetElo, players = []) => {
 export const findMatch = async (userId, mode) => {
   if (!mode) return { error: "Mode is required", status: 400 };
 
-  // Fetch the requesting user's ELO to target similar opponents
+  // Fetch the requesting user's singles ELO to target similar opponents
   const { data: userProfile, error: userError } = await supabase
     .from("users")
-    .select("auth_id, username, elo")
+    .select("auth_id, username, singles_elo")
     .eq("auth_id", userId)
     .single();
 
   if (userError) return { error: userError.message, status: 400 };
 
-  const userElo = userProfile?.elo ?? DEFAULT_ELO;
+  const userElo = userProfile?.singles_elo ?? DEFAULT_ELO;
 
   // progressively widen the search window until we find candidates
   for (const range of [...SEARCH_RANGES, null]) {
@@ -37,12 +37,12 @@ export const findMatch = async (userId, mode) => {
 
     let query = supabase
       .from("users")
-      .select("auth_id, username, gender, elo, profile_image_url")
+      .select("auth_id, username, gender, singles_elo, profile_image_url")
       .neq("auth_id", userId)
       .limit(50);
 
-    if (minElo !== null) query = query.gte("elo", minElo);
-    if (maxElo !== null) query = query.lte("elo", maxElo);
+    if (minElo !== null) query = query.gte("singles_elo", minElo);
+    if (maxElo !== null) query = query.lte("singles_elo", maxElo);
 
     const { data: candidates, error: candidateError } = await query;
 
