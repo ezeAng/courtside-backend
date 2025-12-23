@@ -955,6 +955,16 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
 
   if (updateMatchErr) throw buildError(updateMatchErr.message, 400);
 
+  const uniqueParticipants = [...new Set(participants)];
+
+  for (const participantId of uniqueParticipants) {
+    const { error: overallError } = await client.rpc("update_overall_elo", {
+      p_auth_id: participantId,
+    });
+
+    if (overallError) throw buildError(overallError.message, 400);
+  }
+
   const rankChanges = [];
 
   for (const update of updates) {

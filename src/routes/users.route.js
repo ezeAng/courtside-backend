@@ -6,6 +6,7 @@ import {
   getCardData,
   deleteMyAccount,
   listOtherUsers,
+  getMyOverallRank,
   getUserProfileByUsername,
   searchUsernames,
   searchUsers,
@@ -17,6 +18,7 @@ const router = Router();
 
 router.get("/me", requireAuth, getMyProfile);
 router.get("/home-stats", requireAuth, getHomeStats);
+router.get("/me/overall-rank", requireAuth, getMyOverallRank);
 router.get("/card-data", requireAuth, getCardData);
 router.put("/update", requireAuth, updateMyProfile);
 router.put("/me", requireAuth, updateProfile);

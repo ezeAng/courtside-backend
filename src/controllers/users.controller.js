@@ -1,5 +1,6 @@
 import { supabase } from "../config/supabase.js";
 import * as userService from "../services/users.service.js";
+import { getMyOverallRank as getMyOverallRankService } from "../services/stats.service.js";
 
 export const getMyProfile = async (req, res) => {
   try {
@@ -124,7 +125,18 @@ export const getHomeStats = async (req, res) => {
 
     if (error) throw error;
 
+    const overallResult = await getMyOverallRankService();
+
+    if (overallResult?.error) throw new Error(overallResult.error);
+
     const stats = data ?? {};
+    const overall = overallResult && !overallResult.error ? overallResult : null;
+
+    stats.overall = {
+      elo: overall?.overall_elo ?? null,
+      rank: overall?.overall_rank ?? null,
+    };
+
     return res.json({ success: true, stats });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
@@ -232,5 +244,27 @@ export const deleteMyAccount = async (req, res) => {
     return res.status(200).json({ success: true, message: "Account deleted" });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getMyOverallRank = async (req, res) => {
+  try {
+    const overall = await getMyOverallRankService();
+
+    if (overall?.error) {
+      throw new Error(overall.error);
+    }
+
+    if (!overall) {
+      return res.json({
+        overall_rank: null,
+        overall_elo: null,
+        message: "Overall ranking unlocks after 5 matches",
+      });
+    }
+
+    return res.json(overall);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
   }
 };
