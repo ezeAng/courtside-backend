@@ -134,6 +134,8 @@ const buildMatchResponse = (match, players, userMap) => {
     winner_team: outcome.winner_team ?? determineWinnerTeam(players),
     is_draw: outcome.is_draw,
     played_at: match.played_at,
+    video_link: match.video_link || null,
+    video_added_at: match.video_added_at || null,
     players: buildPlayers(players, userMap),
   };
 };
@@ -1019,5 +1021,61 @@ export const rejectMatch = async (matchId, userId) => {
     success: true,
     matchId,
     status: "rejected",
+  };
+};
+
+export const updateMatchVideoLink = async (matchId, authId, videoLink) => {
+  if (!videoLink || !videoLink.startsWith("https://")) {
+    return { error: "Invalid video link", status: 400 };
+  }
+
+  const { data: match, error: matchError } = await supabase
+    .from("matches")
+    .select("*")
+    .eq("match_id", matchId)
+    .single();
+
+  if (matchError) {
+    const status = matchError.code === "PGRST116" ? 404 : 400;
+    const errorMessage = matchError.code === "PGRST116" ? "Match not found" : matchError.message;
+    return { error: errorMessage, status };
+  }
+
+  if (match.status !== "confirmed") {
+    return { error: "Match not confirmed", status: 400 };
+  }
+
+  const { data: participants, error: participantsError } = await supabase
+    .from("match_players")
+    .select("auth_id")
+    .eq("match_id", matchId);
+
+  if (participantsError) {
+    return { error: participantsError.message, status: 400 };
+  }
+
+  const participantIds = (participants || []).map((p) => p.auth_id);
+
+  if (!participantIds.includes(authId)) {
+    return { error: "Not authorized for this match", status: 403 };
+  }
+
+  const video_added_at = new Date().toISOString();
+
+  const { data: updatedMatch, error: updateError } = await supabase
+    .from("matches")
+    .update({ video_link: videoLink, video_added_at })
+    .eq("match_id", matchId)
+    .select("match_id, video_link, video_added_at")
+    .single();
+
+  if (updateError) {
+    return { error: updateError.message, status: 400 };
+  }
+
+  return {
+    match_id: updatedMatch.match_id,
+    video_link: updatedMatch.video_link,
+    video_added_at: updatedMatch.video_added_at,
   };
 };

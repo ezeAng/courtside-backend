@@ -195,7 +195,13 @@ export const getRecentMatches = async (req, res) => {
 
     if (error) throw error;
 
-    return res.json({ success: true, matches: data });
+    const matches = (data || []).map((match) => ({
+      ...match,
+      video_link: match?.video_link || null,
+      video_added_at: match?.video_added_at || null,
+    }));
+
+    return res.json({ success: true, matches });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
@@ -242,6 +248,33 @@ export const getBadgeCounts = async (req, res) => {
     if (result?.error) {
       const status = result.status || 400;
       return res.status(status).json(result);
+    }
+
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const addMatchVideoLink = async (req, res) => {
+  try {
+    const authId = req.user?.auth_id || req.authUser?.auth_id;
+    const { matchId } = req.params;
+    const { video_link } = req.body || {};
+
+    if (!authId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!video_link || typeof video_link !== "string" || !video_link.startsWith("https://")) {
+      return res.status(400).json({ error: "Invalid video link" });
+    }
+
+    const result = await matchesService.updateMatchVideoLink(matchId, authId, video_link);
+
+    if (result?.error) {
+      const status = result.status || 400;
+      return res.status(status).json({ error: result.error });
     }
 
     return res.json(result);
