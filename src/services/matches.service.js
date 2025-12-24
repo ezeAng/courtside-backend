@@ -915,56 +915,20 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
 
   const updates = [...teamAUpdates, ...teamBUpdates];
 
-  for (const update of updates) {
-    const { error: updateErr } = await client
-      .from("users")
-      .update({ [ratingColumn]: update.new_elo })
-      .eq("auth_id", update.auth_id);
-
-    if (updateErr) throw buildError(updateErr.message, 400);
-  }
-
   const confirmedAt = new Date().toISOString();
   const playedAt = match.played_at ?? confirmedAt;
 
-  const eloHistoryRows = updates.map((update) => ({
-    auth_id: update.auth_id,
-    match_id: matchId,
-    old_elo: update.old_elo,
-    new_elo: update.new_elo,
-    discipline,
-    created_at: playedAt,
-  }));
+  const { error: txError } = await client.rpc("confirm_match_tx", {
+    p_match_id: matchId,
+    p_discipline: discipline,
+    p_updates: updates,
+    p_played_at: playedAt,
+    p_confirmed_at: confirmedAt,
+    p_elo_change_side_a: deltaA,
+    p_elo_change_side_b: deltaB,
+  });
 
-  if (eloHistoryRows.length > 0) {
-    const { error: historyErr } = await client
-      .from("elo_history")
-      .upsert(eloHistoryRows, { onConflict: "auth_id,match_id" });
-
-    if (historyErr) throw buildError(historyErr.message, 400);
-  }
-
-  const { error: updateMatchErr } = await client
-    .from("matches")
-    .update({
-      status: "confirmed",
-      confirmed_at: confirmedAt,
-      elo_change_side_a: deltaA,
-      elo_change_side_b: deltaB,
-    })
-    .eq("match_id", matchId);
-
-  if (updateMatchErr) throw buildError(updateMatchErr.message, 400);
-
-  const uniqueParticipants = [...new Set(participants)];
-
-  for (const participantId of uniqueParticipants) {
-    const { error: overallError } = await client.rpc("update_overall_elo", {
-      p_auth_id: participantId,
-    });
-
-    if (overallError) throw buildError(overallError.message, 400);
-  }
+  if (txError) throw buildError(txError.message, 400);
 
   const rankChanges = [];
 
