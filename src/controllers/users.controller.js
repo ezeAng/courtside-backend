@@ -129,7 +129,7 @@ export const getHomeStats = async (req, res) => {
 
     if (error) throw error;
 
-    const overallResult = await getMyOverallRankService();
+    const overallResult = await getMyOverallRankService(user_id);
 
     if (overallResult?.error) throw new Error(overallResult.error);
 
@@ -256,7 +256,8 @@ export const deleteMyAccount = async (req, res) => {
 
 export const getMyOverallRank = async (req, res) => {
   try {
-    const overall = await getMyOverallRankService();
+    const authId = req.user?.auth_id;
+    const overall = await getMyOverallRankService(authId);
 
     if (overall?.error) {
       throw new Error(overall.error);

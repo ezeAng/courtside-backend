@@ -21,8 +21,14 @@ export const getEloSeries = async (authId, range = "1M") => {
   return data;
 };
 
-export const getMyOverallRank = async (client = supabase) => {
-  const { data, error } = await client.rpc("get_my_overall_rank");
+export const getMyOverallRank = async (authId, client = supabase) => {
+  if (!authId) {
+    return { error: "Missing auth ID" };
+  }
+
+  const { data, error } = await client.rpc("get_my_overall_rank", {
+    p_auth_id: authId,
+  });
 
   if (error) {
     return { error: error.message };
