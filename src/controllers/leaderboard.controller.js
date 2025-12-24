@@ -5,7 +5,7 @@ export const getLeaderboard = async (req, res) => {
     const { gender } = req.params;
     const { discipline = "singles" } = req.query;
     const result = await leaderboardService.getLeaderboard(gender, discipline);
-
+    
     if (result.error) {
       return res.status(400).json(result);
     }
@@ -23,6 +23,7 @@ export const getOverallLeaderboard = async (req, res) => {
       limit,
       offset,
     });
+    
 
     if (result.error) {
       return res.status(400).json({ error: result.error });

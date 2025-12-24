@@ -32,7 +32,7 @@ export const getEloSeries = async (
   return data;
 };
 
-export const getMyOverallRank = async (authId, client = supabase) => {
+export const getMyOverallRankService = async (authId, client = supabase) => {
   if (!authId) {
     return { error: "Missing auth ID" };
   }

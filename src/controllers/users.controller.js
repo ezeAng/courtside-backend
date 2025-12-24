@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase.js";
+import { getMyOverallRankService } from "../services/stats.service.js";
 import * as userService from "../services/users.service.js";
 
 export const getMyProfile = async (req, res) => {
