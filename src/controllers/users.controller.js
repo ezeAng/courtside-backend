@@ -1,6 +1,5 @@
 import { supabase } from "../config/supabase.js";
 import * as userService from "../services/users.service.js";
-import { getMyOverallRank as getMyOverallRankService } from "../services/stats.service.js";
 
 export const getMyProfile = async (req, res) => {
   try {
@@ -121,27 +120,19 @@ export const updateProfile = async (req, res) => {
 
 export const getHomeStats = async (req, res) => {
   try {
-    const user_id = req.user.auth_id;
+    const authId = req.authUser?.auth_id ?? req.user?.auth_id;
+
+    if (!authId) {
+      return res.status(400).json({ success: false, message: "Missing authenticated user" });
+    }
 
     const { data, error } = await supabase.rpc("get_home_stats", {
-      user_auth_id: user_id,
+      user_auth_id: authId,
     });
 
     if (error) throw error;
 
-    const overallResult = await getMyOverallRankService(user_id);
-
-    if (overallResult?.error) throw new Error(overallResult.error);
-
-    const stats = data ?? {};
-    const overall = overallResult && !overallResult.error ? overallResult : null;
-
-    stats.overall = {
-      overall_elo: overall?.overall_elo ?? null,
-      rank: overall?.overall_rank ?? null,
-    };
-
-    return res.json({ success: true, stats });
+    return res.json({ success: true, stats: data ?? null });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
