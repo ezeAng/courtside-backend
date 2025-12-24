@@ -3,8 +3,14 @@ import { getEloSeries, ranges } from "../services/stats.service.js";
 export const fetchEloSeries = async (req, res) => {
   try {
     const range = req.query.range || "1M";
+    const eloType = req.query.elo_type || "overall";
+    const tz = req.query.tz || "UTC";
     if (!ranges.includes(range)) {
       return res.status(400).json({ error: "Invalid range" });
+    }
+
+    if (!["overall", "singles", "doubles"].includes(eloType)) {
+      return res.status(400).json({ error: "Invalid elo type" });
     }
 
     const authId = req.user?.auth_id;
@@ -13,7 +19,7 @@ export const fetchEloSeries = async (req, res) => {
       return res.status(401).json({ error: "Unauthenticated" });
     }
 
-    const result = await getEloSeries(authId, range);
+    const result = await getEloSeries(authId, range, eloType, tz);
 
 
     if (result?.error) {
