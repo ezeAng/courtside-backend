@@ -1,16 +1,27 @@
 import { supabase } from "../config/supabase.js";
 
-const allowedRanges = ["1D", "1W", "1M", "YTD", "ALL"];
+const allowedRanges = ["1W", "1M", "3M", "6M", "1Y"];
+const allowedEloTypes = ["overall", "singles", "doubles"];
 
-export const getEloSeries = async (authId, range = "1M") => {
+export const getEloSeries = async (
+  authId,
+  range = "1M",
+  eloType = "overall",
+  tz = "UTC"
+) => {
   if (!allowedRanges.includes(range)) {
     return { error: "Invalid range" };
+  }
+
+  if (!allowedEloTypes.includes(eloType)) {
+    return { error: "Invalid elo type" };
   }
 
   const { data, error } = await supabase.rpc("get_elo_series", {
     p_auth_id: authId,
     p_range: range,
-    p_tz: "Asia/Singapore",
+    p_tz: tz,
+    p_elo_type: eloType,
   });
 
   if (error) {
@@ -38,3 +49,4 @@ export const getMyOverallRank = async (authId, client = supabase) => {
 };
 
 export const ranges = allowedRanges;
+export const eloTypes = allowedEloTypes;
