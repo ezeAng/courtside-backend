@@ -131,6 +131,7 @@ const buildMatchResponse = (match, players, userMap) => {
   return {
     match_id: match.match_id,
     match_type: match.match_type,
+    status: match.status,
     score: match.score,
     winner_team: outcome.winner_team ?? determineWinnerTeam(players),
     is_draw: outcome.is_draw,
@@ -221,7 +222,7 @@ const buildOpponentConfirmations = (matchPlayers, submitterId) => {
 
 export const createMatch = async (
   { match_type, players_team_A = [], players_team_B = [], winner_team, score, played_at },
-  created_by
+  submitted_by
 ) => {
   try {
     const normalizedScore = normalizeScoreInput(score);
@@ -245,11 +246,12 @@ export const createMatch = async (
 
     const confirmationList = [
       ...new Set(
-        buildConfirmationList(match_type, players_team_A, players_team_B, created_by).filter(
+        buildConfirmationList(match_type, players_team_A, players_team_B, submitted_by).filter(
           Boolean
         )
       ),
     ];
+    console.log(confirmationList)
 
     const { data: match, error: matchError } = await supabase
       .from("matches")
@@ -258,8 +260,7 @@ export const createMatch = async (
           match_type,
           score: normalizedScore,
           played_at: playedAtTimestamp,
-          created_by,
-          submitted_by: created_by,
+          submitted_by,
           status: "pending",
           needs_confirmation_from_list: confirmationList,
         },
@@ -324,7 +325,10 @@ export const createMatch = async (
   }
 };
 
-export const createInvite = async ({ mode, players = [] }, created_by) => {
+export const createInvite = async (
+  { mode, players = [] },
+  submitted_by
+) => {
   try {
     if (!mode) return { error: "Mode is required", status: 400 };
     if (!Array.isArray(players) || players.length === 0)
@@ -335,6 +339,7 @@ export const createInvite = async ({ mode, players = [] }, created_by) => {
       return { error: "Invalid mode", status: 400 };
     }
 
+    // Normalize players
     const normalizedPlayers = players.map((p) => ({
       auth_id: p.auth_id,
       team: normalizeTeam(p.team),
@@ -345,17 +350,20 @@ export const createInvite = async ({ mode, players = [] }, created_by) => {
     }
 
     const participantIds = new Set(normalizedPlayers.map((p) => p.auth_id));
-    if (!participantIds.has(created_by)) {
+    if (!participantIds.has(submitted_by)) {
       return { error: "Creator must be part of the match", status: 400 };
     }
 
+    // Create invite match (no score, no played_at)
     const { data: match, error: matchError } = await supabase
       .from("matches")
       .insert([
         {
           match_type,
+          submitted_by,
           status: "invite",
-          created_by,
+          score: null,
+          played_at: null,
         },
       ])
       .select()
@@ -363,21 +371,32 @@ export const createInvite = async ({ mode, players = [] }, created_by) => {
 
     if (matchError) return { error: matchError.message, status: 400 };
 
+    // Insert all players immediately
     const playerRows = normalizedPlayers.map((player) => ({
       match_id: match.match_id,
       auth_id: player.auth_id,
       team: player.team,
+      is_winner: null,
     }));
 
-    const { error: playersError } = await supabase.from("match_players").insert(playerRows);
+    const { error: playersError } = await supabase
+      .from("match_players")
+      .insert(playerRows);
 
     if (playersError) return { error: playersError.message, status: 400 };
 
-    return { match_id: match.match_id, status: match.status, match_type };
+    return {
+      match_id: match.match_id,
+      match_type,
+      status: match.status,
+      score: null,
+      played_at: null,
+    };
   } catch (err) {
     return { error: err.message };
   }
 };
+
 
 export const acceptInvite = async (matchId, userId) => {
   const { match, matchPlayers, error, status } = await loadMatchWithPlayers(matchId);
@@ -429,7 +448,7 @@ export const cancelMatch = async (matchId, userId, reason) => {
   }
 
   const participantIds = matchPlayers.map((p) => p.auth_id);
-  const isParticipant = participantIds.includes(userId) || match.created_by === userId;
+  const isParticipant = participantIds.includes(userId) || match.submitted_by === userId;
 
   if (!isParticipant) {
     return { error: "User not authorized to cancel this match", status: 403 };
@@ -549,14 +568,14 @@ export const listInvites = async (userId, type = "received") => {
   const participationMatchIds = [...new Set((playerMatches || []).map((m) => m.match_id))];
 
   let query = supabase.from("matches").select("*").eq("status", "invite");
-
+  
   if (normalizedType === "sent") {
-    query = query.eq("created_by", userId);
+    query = query.eq("submitted_by", userId);
   } else {
     if (participationMatchIds.length === 0) return { invites: [] };
-    query = query.neq("created_by", userId).in("match_id", participationMatchIds);
+    query = query.neq("submitted_by", userId).in("match_id", participationMatchIds);
   }
-
+  
   const { data: invites, error: inviteError } = await query.order("created_at", {
     ascending: false,
   });
@@ -578,7 +597,7 @@ export const listInvites = async (userId, type = "received") => {
       match_id: invite.match_id,
       status: invite.status,
       match_type: invite.match_type,
-      created_by: invite.created_by,
+      submitted_by: invite.submitted_by,
       accepted_by: invite.accepted_by || null,
       accepted_at: invite.accepted_at || null,
       players: playerInfo,
@@ -613,7 +632,7 @@ export const getBadgeCounts = async (userId) => {
       .from("matches")
       .select("match_id", { count: "exact", head: true })
       .eq("status", "invite")
-      .neq("created_by", userId)
+      .neq("submitted_by", userId)
       .in("match_id", matchIds);
 
     if (invitesError) return { error: invitesError.message, status: 400 };
@@ -640,8 +659,9 @@ export const getMatchesForUser = async (auth_id) => {
     .from("matches")
     .select("*")
     .in("match_id", matchIds)
+    .neq("status", "invite")
     .order("played_at", { ascending: false });
-
+  
   if (matchesError) return { error: matchesError.message };
 
   const { matchPlayers, userMap, error } = await fetchPlayersWithUsers(matchIds);
@@ -689,7 +709,7 @@ export const deleteMatch = async (match_id, requesterId) => {
     return { error: matchError.message, status };
   }
 
-  if (match.created_by !== requesterId) {
+  if (match.submitted_by !== requesterId) {
     return { error: "Not authorized to delete this match", status: 403 };
   }
 
@@ -704,30 +724,47 @@ export const deleteMatch = async (match_id, requesterId) => {
 };
 
 export const getPendingMatches = async (userId) => {
+  const baseSelect = `
+    *,
+    submitted_by_user:users!submitted_by (
+      auth_id,
+      username
+    ),
+    match_players (
+      match_id,
+      auth_id,
+      user:users (
+        auth_id,
+        username
+      )
+    )
+  `;
 
+  // Incoming: user needs to confirm
   const { data: incoming, error: err1 } = await supabase
     .from("matches")
-    .select("*")
+    .select(baseSelect)
     .eq("status", "pending")
     .contains("needs_confirmation_from_list", JSON.stringify([userId]))
     .order("created_at", { ascending: false });
 
   if (err1) throw buildError(err1.message, 400);
 
+  // Outgoing: user submitted
   const { data: outgoing, error: err2 } = await supabase
     .from("matches")
-    .select("*")
+    .select(baseSelect)
     .eq("status", "pending")
     .eq("submitted_by", userId)
     .order("created_at", { ascending: false });
 
-  if (err2) {
-    console.log(err2)
-    throw buildError(err2.message, 400);
-  }
-  
+  if (err2) throw buildError(err2.message, 400);
+
   return { incoming, outgoing };
 };
+
+
+
 
 const getRankForElo = async (client, eloValue, column = "singles_elo") => {
   const { count, error } = await client
@@ -780,6 +817,7 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
   if (match.status === "confirmed") throw buildError("Match already confirmed", 409);
   if (!["pending", "invite"].includes(match.status))
     throw buildError("Match already processed", 400);
+
   if (
     Array.isArray(match.needs_confirmation_from_list) &&
     !match.needs_confirmation_from_list.includes(userId)
@@ -793,46 +831,35 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
     .eq("match_id", matchId);
 
   if (playersError) throw buildError(playersError.message, 400);
-  if (!matchPlayers || matchPlayers.length === 0) throw buildError("Match players not found", 404);
+  if (!matchPlayers || matchPlayers.length === 0)
+    throw buildError("Match players not found", 404);
 
   const playerIds = matchPlayers.map((p) => p.auth_id);
-
   if (!playerIds.includes(userId)) {
     throw buildError("User not authorized to confirm this match", 403);
   }
 
   const submitter = matchPlayers.find((p) => p.auth_id === match.submitted_by);
-
-  if (!submitter) {
-    throw buildError("Submitting player not found for this match", 400);
-  }
+  if (!submitter) throw buildError("Submitting player not found for this match", 400);
 
   const confirmer = matchPlayers.find((p) => p.auth_id === userId);
-
   if (confirmer?.team === submitter.team) {
     throw buildError("Confirmation must come from the opposing team", 403);
   }
 
   const discipline = match.discipline || match.match_type || "singles";
-
   if (match.match_type && match.discipline && match.match_type !== match.discipline) {
     throw buildError("Match type and discipline mismatch", 400);
   }
 
-  const matchTeamA = Array.isArray(match.team_a_auth_ids) ? match.team_a_auth_ids.filter(Boolean) : [];
-  const matchTeamB = Array.isArray(match.team_b_auth_ids) ? match.team_b_auth_ids.filter(Boolean) : [];
-
-  const playersTeamA = matchPlayers.filter((p) => p.team === "A").map((p) => p.auth_id);
-  const playersTeamB = matchPlayers.filter((p) => p.team === "B").map((p) => p.auth_id);
-
-  const teamA = matchTeamA.length > 0 ? matchTeamA : playersTeamA;
-  const teamB = matchTeamB.length > 0 ? matchTeamB : playersTeamB;
+  const teamA = matchPlayers.filter((p) => p.team === "A").map((p) => p.auth_id);
+  const teamB = matchPlayers.filter((p) => p.team === "B").map((p) => p.auth_id);
 
   if (discipline === "doubles") {
     if (teamA.length !== 2 || teamB.length !== 2) {
       throw buildError("Doubles match requires two players per team", 400);
     }
-  } else if (discipline === "singles") {
+  } else {
     if (teamA.length !== 1 || teamB.length !== 1) {
       throw buildError("Singles match requires one player per team", 400);
     }
@@ -840,7 +867,6 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
 
   const participants = [...teamA, ...teamB];
   const participantsSet = new Set(participants);
-
   if (participantsSet.size !== participants.length) {
     throw buildError("Duplicate players detected across teams", 400);
   }
@@ -853,7 +879,6 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
   }
 
   let parsedScore;
-
   try {
     parsedScore = parseScore(match.score);
   } catch (err) {
@@ -862,12 +887,14 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
 
   const { winnerSide, is_draw } = determineWinnerFromScore(parsedScore);
 
+  // Load current elos (username fetched here is optional; RPC also returns username now)
   const { data: players, error: usersError } = await client
     .from("users")
-    .select("auth_id, singles_elo, doubles_elo")
+    .select("auth_id, singles_elo, doubles_elo, username")
     .in("auth_id", participants);
 
   if (usersError) throw buildError(usersError.message, 400);
+
   const users = players || [];
   const usersMap = new Map(users.map((p) => [p.auth_id, p]));
 
@@ -881,19 +908,18 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
   );
 
   const preMatchRanks = new Map();
-
   for (const playerId of participants) {
     const rank = await getRankForElo(client, eloMap.get(playerId), ratingColumn);
     preMatchRanks.set(playerId, rank);
   }
 
   const scoreA = is_draw ? 0.5 : winnerSide === "A" ? 1 : 0;
-  const scoreB = is_draw ? 0.5 : 1 - scoreA;
 
   const teamARating =
     discipline === "doubles"
       ? avg(teamA.map((id) => eloMap.get(id) ?? DEFAULT_ELO))
       : eloMap.get(teamA[0]) ?? DEFAULT_ELO;
+
   const teamBRating =
     discipline === "doubles"
       ? avg(teamB.map((id) => eloMap.get(id) ?? DEFAULT_ELO))
@@ -904,21 +930,23 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
   const deltaA = roundDelta(kFactor * (scoreA - expectedA));
   const deltaB = -deltaA;
 
-  const teamAUpdates = teamA.map((auth_id) => {
+  // ✅ IMPORTANT: build updates BEFORE calling RPC
+  const teamAUpdatesRaw = teamA.map((auth_id) => {
     const old_elo = eloMap.get(auth_id) ?? DEFAULT_ELO;
     return { auth_id, old_elo, new_elo: old_elo + deltaA };
   });
-  const teamBUpdates = teamB.map((auth_id) => {
+
+  const teamBUpdatesRaw = teamB.map((auth_id) => {
     const old_elo = eloMap.get(auth_id) ?? DEFAULT_ELO;
     return { auth_id, old_elo, new_elo: old_elo + deltaB };
   });
 
-  const updates = [...teamAUpdates, ...teamBUpdates];
+  const updates = [...teamAUpdatesRaw, ...teamBUpdatesRaw];
 
   const confirmedAt = new Date().toISOString();
   const playedAt = match.played_at ?? confirmedAt;
 
-  const { error: txError } = await client.rpc("confirm_match_tx", {
+  const { data: txResult, error: txError } = await client.rpc("confirm_match_tx", {
     p_match_id: matchId,
     p_discipline: discipline,
     p_updates: updates,
@@ -930,17 +958,35 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
 
   if (txError) throw buildError(txError.message, 400);
 
-  const rankChanges = [];
+  // ✅ confirm_match_tx returns: { updated: N, players: [...] }
+  const enrichedMap = new Map(
+    (txResult?.players || []).map((u) => [u.auth_id, u])
+  );
 
-  for (const update of updates) {
+  // Fallback username from users query if RPC didn't return for some reason
+  const fallbackUsername = (auth_id) => usersMap.get(auth_id)?.username;
+
+  const enrich = (update) => ({
+    ...update,
+    username: enrichedMap.get(update.auth_id)?.username ?? fallbackUsername(update.auth_id),
+  });
+
+  const teamAUpdates = teamAUpdatesRaw.map(enrich);
+  const teamBUpdates = teamBUpdatesRaw.map(enrich);
+  const enrichedUpdates = [...teamAUpdates, ...teamBUpdates];
+
+  const rankChanges = [];
+  for (const update of enrichedUpdates) {
     const newRank = await getRankForElo(client, update.new_elo, ratingColumn);
     const previousRank = preMatchRanks.get(update.auth_id) ?? null;
 
     rankChanges.push({
       playerId: update.auth_id,
+      username: update.username, // helpful for UI
       previousRank,
       newRank,
-      rankChange: previousRank && newRank ? previousRank - newRank : null,
+      rankChange:
+        previousRank != null && newRank != null ? previousRank - newRank : null,
     });
   }
 
@@ -968,6 +1014,7 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
     upset: upsetDetails,
   };
 };
+
 
 export const rejectMatch = async (matchId, userId) => {
   const { data: match, error: loadErr } = await supabase

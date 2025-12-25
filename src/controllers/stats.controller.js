@@ -20,7 +20,6 @@ export const fetchEloSeries = async (req, res) => {
     }
 
     const result = await getEloSeries(authId, range, eloType, tz);
-    console.log(result)
 
     if (result?.error) {
       return res.status(500).json({ error: result.error });

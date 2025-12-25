@@ -1,19 +1,7 @@
-CREATE OR REPLACE FUNCTION public.confirm_match_tx(
-  p_match_id uuid,
-  p_discipline text,
-  p_updates jsonb,
-  p_played_at timestamptz,
-  p_confirmed_at timestamptz,
-  p_elo_change_side_a int,
-  p_elo_change_side_b int
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
 DECLARE
   v_update jsonb;
   v_auth_id uuid;
+  v_username text;
   v_old_elo int;
   v_new_elo int;
   v_singles_elo int;
@@ -23,24 +11,30 @@ DECLARE
   v_old_overall int;
   v_new_overall int;
   v_total_matches int;
+
+  -- NEW: accumulate enriched player updates
+  v_players jsonb := '[]'::jsonb;
 BEGIN
   IF p_discipline NOT IN ('singles', 'doubles') THEN
     RAISE EXCEPTION 'Invalid discipline %', p_discipline;
   END IF;
 
-  FOR v_update IN SELECT * FROM jsonb_array_elements(p_updates)
+  FOR v_update IN
+    SELECT * FROM jsonb_array_elements(p_updates)
   LOOP
     v_auth_id := (v_update->>'auth_id')::uuid;
     v_old_elo := (v_update->>'old_elo')::int;
     v_new_elo := (v_update->>'new_elo')::int;
 
     SELECT
+      u.username,
       u.singles_elo,
       u.doubles_elo,
       COALESCE(u.singles_matches_played, 0),
       COALESCE(u.doubles_matches_played, 0),
       u.overall_elo
     INTO
+      v_username,
       v_singles_elo,
       v_doubles_elo,
       v_singles_matches,
@@ -66,10 +60,13 @@ BEGIN
     END IF;
 
     v_total_matches := v_singles_matches + v_doubles_matches;
+
     IF v_total_matches > 0 THEN
       v_new_overall := ROUND(
-        ((v_singles_elo * v_singles_matches)::numeric + (v_doubles_elo * v_doubles_matches)::numeric) /
-        v_total_matches
+        (
+          (v_singles_elo * v_singles_matches)::numeric +
+          (v_doubles_elo * v_doubles_matches)::numeric
+        ) / v_total_matches
       );
     ELSE
       v_new_overall := NULL;
@@ -112,6 +109,16 @@ BEGIN
       old_overall_elo = EXCLUDED.old_overall_elo,
       new_overall_elo = EXCLUDED.new_overall_elo,
       created_at = EXCLUDED.created_at;
+
+    -- NEW: collect enriched player info for return payload
+    v_players := v_players || jsonb_build_array(
+      jsonb_build_object(
+        'auth_id', v_auth_id,
+        'username', v_username,
+        'old_elo', v_old_elo,
+        'new_elo', v_new_elo
+      )
+    );
   END LOOP;
 
   UPDATE public.matches m
@@ -122,6 +129,8 @@ BEGIN
     elo_change_side_b = p_elo_change_side_b
   WHERE m.match_id = p_match_id;
 
-  RETURN jsonb_build_object('updated', jsonb_array_length(p_updates));
+  RETURN jsonb_build_object(
+    'updated', jsonb_array_length(p_updates),
+    'players', v_players
+  );
 END;
-$$;

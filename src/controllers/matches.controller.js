@@ -5,11 +5,11 @@ export const createMatch = async (req, res) => {
   try {
     const { match_type, players_team_A, players_team_B, winner_team, score, played_at } =
       req.body;
-    const created_by = req.user?.auth_id || req.authUser?.auth_id;
+    const submitted_by = req.user?.auth_id || req.authUser?.auth_id;
 
     const result = await matchesService.createMatch(
       { match_type, players_team_A, players_team_B, winner_team, score, played_at },
-      created_by
+      submitted_by
     );
 
     if (result.error) {
@@ -24,20 +24,20 @@ export const createMatch = async (req, res) => {
 
 export const createInvite = async (req, res) => {
   try {
-    const created_by = req.user?.auth_id || req.authUser?.auth_id;
-    const { created_by: payloadCreator, ...invitePayload } = req.body || {};
+    const submitted_by = req.user?.auth_id || req.authUser?.auth_id;
+    const { submitted_by: payloadCreator, ...invitePayload } = req.body || {};
 
-    if (!created_by) {
+    if (!submitted_by) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    if (payloadCreator && payloadCreator !== created_by) {
+    if (payloadCreator && payloadCreator !== submitted_by) {
       return res
         .status(400)
-        .json({ error: "created_by is derived from the authenticated user" });
+        .json({ error: "submitted_by is derived from the authenticated user" });
     }
 
-    const result = await matchesService.createInvite(invitePayload, created_by);
+    const result = await matchesService.createInvite(invitePayload, submitted_by);
 
     if (result?.error) {
       const status = result.status || 400;
