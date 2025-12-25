@@ -28,53 +28,6 @@ export const getProfile = async (auth_id) => {
   return data;
 };
 
-// ---------------- UPDATE PROFILE ----------------
-export const updateProfile = async (auth_id, updates) => {
-  return updateUserService(auth_id, updates);
-};
-
-// ---------------- UPDATE USER ----------------
-export const updateUserService = async (authId, updates) => {
-  const allowedFields = ["username", "gender", "avatar"];
-
-  const filteredUpdates = Object.entries(updates || {}).reduce(
-    (acc, [key, value]) => {
-      if (allowedFields.includes(key) && value !== undefined) {
-        acc[key] = value;
-      }
-      return acc;
-    },
-    {}
-  );
-
-  if (Object.keys(filteredUpdates).length === 0) {
-    return { error: "No valid fields provided for update" };
-  }
-
-  if (filteredUpdates.avatar !== undefined) {
-    const avatarNumber = Number(filteredUpdates.avatar);
-
-    if (!Number.isInteger(avatarNumber) || avatarNumber < 0 || avatarNumber > 9) {
-      return { error: "Avatar must be an integer between 0 and 9" };
-    }
-
-    filteredUpdates.avatar = avatarNumber;
-  }
-
-  const { data, error } = await supabase
-    .from("users")
-    .update(filteredUpdates)
-    .eq("auth_id", authId)
-    .select(
-      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo"
-    )
-    .single();
-
-  if (error) return { error: error.message };
-
-  return data;
-};
-
 // ---------------- AUTOCOMPLETE USERNAMES ----------------
 export const searchUsernames = async (query, options = {}) => {
   const trimmedQuery = query?.trim();

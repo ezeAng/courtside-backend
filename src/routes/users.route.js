@@ -10,7 +10,6 @@ import {
   getUserProfileByUsername,
   searchUsernames,
   searchUsers,
-  updateMyProfile,
   updateProfile,
 } from "../controllers/users.controller.js";
 
@@ -20,7 +19,6 @@ router.get("/me", requireAuth, getMyProfile);
 router.get("/home-stats", requireAuth, getHomeStats);
 router.get("/me/overall-rank", requireAuth, getMyOverallRank);
 router.get("/card-data", requireAuth, getCardData);
-router.put("/update", requireAuth, updateMyProfile);
 router.put("/me", requireAuth, updateProfile);
 router.delete("/me", requireAuth, deleteMyAccount);
 router.get("/search/autocomplete", requireAuth, searchUsernames);

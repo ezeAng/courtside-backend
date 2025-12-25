@@ -68,31 +68,11 @@ export const listOtherUsers = async (req, res) => {
   }
 };
 
-export const updateMyProfile = async (req, res) => {
-  try {
-    const auth_id = req.authUser.id;
-    const { username, gender, avatar } = req.body;
-
-    const updates = { username, gender, avatar };
-
-    const result = await userService.updateUserService(auth_id, updates);
-
-    if (result.error) {
-      return res.status(400).json(result);
-    }
-
-    res.status(200).json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
 export const updateProfile = async (req, res) => {
   try {
     const user_id = req.user.auth_id;
-
-    const { region, address, bio, profile_image_url } = req.body;
-
+    
+    const { region, address, bio, profile_image_url, gender } = req.body;
     const { data, error } = await supabase
       .from("users")
       .update({
@@ -100,6 +80,7 @@ export const updateProfile = async (req, res) => {
         address,
         bio,
         profile_image_url,
+        gender
       })
       .eq("auth_id", user_id)
       .select()

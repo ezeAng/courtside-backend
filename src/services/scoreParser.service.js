@@ -3,7 +3,10 @@ export const parseScore = (scoreText) => {
     throw new Error("Score text is required");
   }
 
-  const setsRaw = scoreText.split(",").map((set) => set.trim()).filter(Boolean);
+  const setsRaw = scoreText
+    .split(",")
+    .map((set) => set.trim())
+    .filter(Boolean);
 
   if (setsRaw.length === 0 || setsRaw.length > 3) {
     throw new Error("Score must contain between 1 and 3 sets");
@@ -12,9 +15,13 @@ export const parseScore = (scoreText) => {
   const sets = [];
   let teamA_sets_won = 0;
   let teamB_sets_won = 0;
+  let teamA_diff = 0;
+  let teamB_diff = 0;
 
   setsRaw.forEach((setScore) => {
-    const [aScoreText, bScoreText] = setScore.split("-").map((score) => score.trim());
+    const [aScoreText, bScoreText] = setScore
+      .split("-")
+      .map((score) => score.trim());
 
     const a = Number(aScoreText);
     const b = Number(bScoreText);
@@ -23,48 +30,49 @@ export const parseScore = (scoreText) => {
       throw new Error("Set scores must be integers");
     }
 
+    if (a === b) {
+      throw new Error("Set scores cannot be tied");
+    }
+
     sets.push({ a, b });
 
     if (a > b) {
       teamA_sets_won += 1;
-    } else if (b > a) {
-      teamB_sets_won += 1;
+      teamA_diff += a - b;
     } else {
-      throw new Error("Set scores cannot be tied");
+      teamB_sets_won += 1;
+      teamB_diff += b - a;
     }
   });
 
-  const isTwoSetDrawCandidate = sets.length === 2 && teamA_sets_won === teamB_sets_won;
-
-  if (isTwoSetDrawCandidate) {
-    const [firstSet, secondSet] = sets;
-    const diff1 = Math.abs(firstSet.a - firstSet.b);
-    const diff2 = Math.abs(secondSet.a - secondSet.b);
-
-    if (diff1 === diff2) {
-      return {
-        sets,
-        teamA_sets_won,
-        teamB_sets_won,
-        winner_team: null,
-        is_draw: true,
-      };
-    }
+  // Normal case: clear winner by sets
+  if (teamA_sets_won !== teamB_sets_won) {
+    return {
+      sets,
+      teamA_sets_won,
+      teamB_sets_won,
+      winner_team: teamA_sets_won > teamB_sets_won ? "A" : "B",
+      is_draw: false,
+    };
   }
 
-  if (teamA_sets_won === teamB_sets_won) {
-    throw new Error(
-      "Score must produce a winner unless two-set draw has identical score differentials"
-    );
+  // Tie in sets → resolve by total score differential
+  if (teamA_diff !== teamB_diff) {
+    return {
+      sets,
+      teamA_sets_won,
+      teamB_sets_won,
+      winner_team: teamA_diff > teamB_diff ? "A" : "B",
+      is_draw: false,
+    };
   }
 
-  const winner_team = teamA_sets_won > teamB_sets_won ? "A" : "B";
-
+  // True draw (rare but allowed)
   return {
     sets,
     teamA_sets_won,
     teamB_sets_won,
-    winner_team,
-    is_draw: false,
+    winner_team: null,
+    is_draw: true,
   };
 };

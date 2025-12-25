@@ -4,7 +4,8 @@ export const fetchEloSeries = async (req, res) => {
   try {
     const range = req.query.range || "1M";
     const eloType = req.query.elo_type || "overall";
-    const tz = req.query.tz || "UTC";
+    const tz = req.query.tz || "Asia/Singapore";
+
     if (!ranges.includes(range)) {
       return res.status(400).json({ error: "Invalid range" });
     }

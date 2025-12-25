@@ -17,7 +17,7 @@ export const getLeaderboard = async (gender, discipline = "singles", client = su
   let query = client
     .from("users")
     .select(
-      "auth_id, username, gender, singles_elo, doubles_elo, profile_image_url"
+      "auth_id, username, gender, singles_elo, doubles_elo, profile_image_url, overall_elo"
     )
     .order(ratingColumn, { ascending: false })
     .limit(100);

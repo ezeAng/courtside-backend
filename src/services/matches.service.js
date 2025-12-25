@@ -225,17 +225,17 @@ export const createMatch = async (
   submitted_by
 ) => {
   try {
+    
     const normalizedScore = normalizeScoreInput(score);
-
+    
     if (!normalizedScore) {
       return { error: "Invalid score format", status: 400 };
     }
-
     const parsedScore = parseScore(normalizedScore);
+
     if (parsedScore.is_draw && winner_team) {
       return { error: "Cannot specify a winner for a drawn scoreline", status: 400 };
     }
-
     if (winner_team && parsedScore.winner_team && winner_team !== parsedScore.winner_team) {
       return { error: "Provided winner does not match parsed score" };
     }
@@ -251,7 +251,7 @@ export const createMatch = async (
         )
       ),
     ];
-    console.log(confirmationList)
+    
 
     const { data: match, error: matchError } = await supabase
       .from("matches")
@@ -267,7 +267,7 @@ export const createMatch = async (
       ])
       .select()
       .single();
-
+    console.log(match, matchError)
     if (matchError) return { error: matchError.message };
 
     const playerRows = [];
