@@ -22,51 +22,6 @@ export const createMatch = async (req, res) => {
   }
 };
 
-export const createInvite = async (req, res) => {
-  try {
-    const submitted_by = req.user?.auth_id || req.authUser?.auth_id;
-    const { submitted_by: payloadCreator, ...invitePayload } = req.body || {};
-
-    if (!submitted_by) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
-    if (payloadCreator && payloadCreator !== submitted_by) {
-      return res
-        .status(400)
-        .json({ error: "submitted_by is derived from the authenticated user" });
-    }
-
-    const result = await matchesService.createInvite(invitePayload, submitted_by);
-
-    if (result?.error) {
-      const status = result.status || 400;
-      return res.status(status).json(result);
-    }
-
-    res.status(201).json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-export const acceptInvite = async (req, res) => {
-  try {
-    const userId = req.user?.auth_id || req.authUser?.auth_id;
-    const { match_id } = req.params;
-    const result = await matchesService.acceptInvite(match_id, userId);
-
-    if (result?.error) {
-      const status = result.status || 400;
-      return res.status(status).json(result);
-    }
-
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
 export const cancelMatch = async (req, res) => {
   try {
     const userId = req.user?.auth_id || req.authUser?.auth_id;
@@ -220,39 +175,6 @@ export const getH2HRivals = async (req, res) => {
     return res.json({ success: true, rivals: data });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
-  }
-};
-
-export const listInvites = async (req, res) => {
-  try {
-    const userId = req.user?.auth_id || req.authUser?.auth_id;
-    const { type } = req.query;
-    const result = await matchesService.listInvites(userId, type);
-
-    if (result?.error) {
-      const status = result.status || 400;
-      return res.status(status).json(result);
-    }
-
-    return res.json(result);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-};
-
-export const getBadgeCounts = async (req, res) => {
-  try {
-    const userId = req.user?.auth_id || req.authUser?.auth_id;
-    const result = await matchesService.getBadgeCounts(userId);
-
-    if (result?.error) {
-      const status = result.status || 400;
-      return res.status(status).json(result);
-    }
-
-    return res.json(result);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
   }
 };
 

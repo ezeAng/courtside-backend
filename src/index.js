@@ -7,7 +7,6 @@ import matchRoutes from "./routes/matches.routes.js";
 import leaderboardRoutes from "./routes/leaderboard.route.js";
 import statsRoutes from "./routes/stats.route.js";
 import profileRoutes from "./routes/profile.route.js";
-import matchmakingRoutes from "./routes/matchmaking.route.js";
 import feedbackRoutes from "./routes/feedback.route.js";
 
 const app = express();
@@ -25,7 +24,6 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/matches", matchRoutes);
-app.use("/api/matchmaking", matchmakingRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/leaderboards", leaderboardRoutes);
 app.use("/api/stats", statsRoutes);
