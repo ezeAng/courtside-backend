@@ -14,6 +14,25 @@ export const getMyProfile = async (req, res) => {
   }
 };
 
+export const getUserContact = async (req, res) => {
+  try {
+    const requesterAuthId = req.authUser?.auth_id || req.authUser?.id;
+    const targetAuthId = req.params?.auth_id;
+
+    const result = await userService.getContactDetailsForConnection(requesterAuthId, targetAuthId);
+
+    if (result?.error) {
+      const status = result.status || 400;
+      const message = status === 404 ? "User not found" : "Forbidden";
+      return res.status(status).json({ error: message });
+    }
+
+    return res.status(200).json(result.contact || {});
+  } catch (err) {
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 export const searchUsers = async (req, res) => {
   try {
     const authId = req.authUser?.id || req.authUser?.auth_id;

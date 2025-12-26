@@ -12,6 +12,7 @@ import {
   searchUsers,
   getRecommendedUsers,
   updateProfile,
+  getUserContact,
 } from "../controllers/users.controller.js";
 
 const router = Router();
@@ -27,5 +28,6 @@ router.get("/search/profile", requireAuth, getUserProfileByUsername);
 router.get("/search", requireAuth, searchUsers);
 router.get("/recommended", requireAuth, getRecommendedUsers);
 router.get("/others", requireAuth, listOtherUsers);
+router.get("/:auth_id/contact", requireAuth, getUserContact);
 
 export default router;
