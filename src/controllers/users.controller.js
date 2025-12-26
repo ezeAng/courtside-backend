@@ -1,6 +1,7 @@
 import { supabase } from "../config/supabase.js";
 import { getMyOverallRankService } from "../services/stats.service.js";
 import * as userService from "../services/users.service.js";
+import * as connectionsService from "../services/connections.service.js";
 
 export const getMyProfile = async (req, res) => {
   try {
@@ -15,14 +16,28 @@ export const getMyProfile = async (req, res) => {
 
 export const searchUsers = async (req, res) => {
   try {
-    const { query, gender, limit, page, discipline } = req.query;
-    const results = await userService.searchUsers(query, gender, { limit, page, discipline });
-
-    if (results?.error) {
-      return res.status(400).json(results);
-    }
+    const authId = req.authUser?.id || req.authUser?.auth_id;
+    const { query, limit } = req.query;
+    const results = await connectionsService.searchUsersForConnections(authId, query, { limit });
 
     return res.status(200).json(results);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const getRecommendedUsers = async (req, res) => {
+  try {
+    const authId = req.authUser?.id || req.authUser?.auth_id;
+    const { mode, region, limit } = req.query;
+
+    const result = await connectionsService.getRecommendedUsers(authId, mode, region, { limit });
+
+    if (result?.error) {
+      return res.status(result.status || 400).json({ error: result.error });
+    }
+
+    return res.status(200).json(result);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
