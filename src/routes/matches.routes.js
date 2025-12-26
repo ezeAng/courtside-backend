@@ -2,8 +2,6 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import {
   createMatch,
-  createInvite,
-  acceptInvite,
   cancelMatch,
   submitMatchScore,
   getH2HRivals,
@@ -14,8 +12,6 @@ import {
   getPendingMatches,
   confirmMatch,
   rejectMatch,
-  listInvites,
-  getBadgeCounts,
   addMatchVideoLink,
 } from "../controllers/matches.controller.js";
 
@@ -23,10 +19,8 @@ const router = Router();
 
 // CREATE
 router.post("/create", requireAuth, createMatch);
-router.post("/invite", requireAuth, createInvite);
 
-// INVITE MANAGEMENT
-router.post("/:match_id/accept", requireAuth, acceptInvite);
+// MATCH MANAGEMENT
 router.post("/:match_id/cancel", requireAuth, cancelMatch);
 router.post("/:match_id/submit-score", requireAuth, submitMatchScore);
 router.post("/:matchId/video", requireAuth, addMatchVideoLink);
@@ -35,8 +29,6 @@ router.post("/:matchId/video", requireAuth, addMatchVideoLink);
 router.get("/pending", requireAuth, getPendingMatches);
 router.get("/recent", requireAuth, getRecentMatches);
 router.get("/h2h", requireAuth, getH2HRivals);
-router.get("/invites", requireAuth, listInvites);
-router.get("/badge-counts", requireAuth, getBadgeCounts);
 router.get("/user/:auth_id", getMatchesForUser);
 router.get("/:match_id", getMatchById);   // <-- generic, placed LAST among GET routes
 
