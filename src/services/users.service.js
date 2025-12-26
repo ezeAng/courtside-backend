@@ -13,6 +13,72 @@ const buildTierInfo = (rating = 0) => {
   return { tier, star_rating };
 };
 
+export const getContactDetailsForConnection = async (requesterAuthId, targetAuthId) => {
+  if (!requesterAuthId || !targetAuthId) {
+    return { error: "Forbidden", status: 403 };
+  }
+
+  if (requesterAuthId === targetAuthId) {
+    return { error: "Forbidden", status: 403 };
+  }
+
+  const { data: targetUser, error: targetError } = await supabase
+    .from("users")
+    .select(
+      "auth_id, phone_number, contact_email, is_profile_private, share_contact_with_connections"
+    )
+    .eq("auth_id", targetAuthId)
+    .maybeSingle();
+
+  if (targetError) {
+    if (targetError.code === "PGRST116" || targetError.message?.toLowerCase().includes("row not found")) {
+      return { error: "User not found", status: 404 };
+    }
+
+    throw new Error(targetError.message);
+  }
+
+  if (!targetUser) {
+    return { error: "User not found", status: 404 };
+  }
+
+  const { data: connection, error: connectionError } = await supabase
+    .from("connections")
+    .select("id")
+    .or(
+      `and(user_a_auth_id.eq.${requesterAuthId},user_b_auth_id.eq.${targetAuthId}),and(user_a_auth_id.eq.${targetAuthId},user_b_auth_id.eq.${requesterAuthId})`
+    )
+    .maybeSingle();
+
+  if (connectionError) {
+    throw new Error(connectionError.message);
+  }
+
+  if (!connection) {
+    return { error: "Forbidden", status: 403 };
+  }
+
+  if (targetUser.is_profile_private) {
+    return { error: "Forbidden", status: 403 };
+  }
+
+  if (!targetUser.share_contact_with_connections) {
+    return { error: "Forbidden", status: 403 };
+  }
+
+  const contact = {};
+
+  if (targetUser.phone_number) {
+    contact.phone_number = targetUser.phone_number;
+  }
+
+  if (targetUser.contact_email) {
+    contact.contact_email = targetUser.contact_email;
+  }
+
+  return { contact };
+};
+
 // ---------------- GET PROFILE ----------------
 export const getProfile = async (auth_id) => {
   const { data, error } = await supabase
