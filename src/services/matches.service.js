@@ -1,12 +1,11 @@
 import { supabase } from "../config/supabase.js";
+import { computeEloDelta } from "./elo.service.js";
 import { parseScore } from "./scoreParser.service.js";
 
 const DEFAULT_ELO = 1000;
 const K_SINGLES = 32;
 const K_DOUBLES = 32;
 
-const expectedScore = (playerElo, opponentElo) =>
-  1 / (1 + 10 ** ((opponentElo - playerElo) / 400));
 const avg = (nums = []) => {
   if (!Array.isArray(nums) || nums.length === 0) {
     return 0;
@@ -715,10 +714,17 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
       ? avg(teamB.map((id) => eloMap.get(id) ?? DEFAULT_ELO))
       : eloMap.get(teamB[0]) ?? DEFAULT_ELO;
 
-  const expectedA = expectedScore(teamARating, teamBRating);
   const kFactor = discipline === "doubles" ? K_DOUBLES : K_SINGLES;
-  const deltaA = roundDelta(kFactor * (scoreA - expectedA));
-  const deltaB = -deltaA;
+  const { deltaA: rawDeltaA, deltaB: rawDeltaB } = computeEloDelta({
+    ratingA: teamARating,
+    ratingB: teamBRating,
+    scoreA,
+    parsedScore,
+    kFactor,
+    mode: discipline,
+  });
+  const deltaA = roundDelta(rawDeltaA);
+  const deltaB = roundDelta(rawDeltaB);
 
   // ✅ IMPORTANT: build updates BEFORE calling RPC
   const teamAUpdatesRaw = teamA.map((auth_id) => {
