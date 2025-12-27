@@ -172,22 +172,36 @@ export const getHomeStats = async (req, res) => {
 
 export const getCardData = async (req, res) => {
   try {
-    const user_id = req.user.auth_id;
+    const targetAuthId = req.query?.auth_id || req.user?.auth_id;
+
+    if (!targetAuthId) {
+      return res.status(400).json({ success: false, message: "Missing target user" });
+    }
+
     // Fetch user profile + ratings (overall/singles/doubles)
     const { data: user, error: userErr } = await supabase
       .from("users")
       .select(
         "username, gender, region, bio, profile_image_url, avatar, singles_elo, doubles_elo, overall_elo"
       )
-      .eq("auth_id", user_id)
+      .eq("auth_id", targetAuthId)
       .single();
     
-    if (userErr) throw userErr;
+    if (userErr) {
+      if (userErr.code === "PGRST116") {
+        return res.status(404).json({ success: false, message: "User not found" });
+      }
+      throw userErr;
+    }
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
 
     // Win rate from last 10 matches
     const { data: winRate, error: winErr } = await supabase.rpc(
       "get_win_rate_last10",
-      { user_auth_id: user_id }
+      { user_auth_id: targetAuthId }
     );
     
     if (winErr) throw winErr;
@@ -195,7 +209,7 @@ export const getCardData = async (req, res) => {
     // Best match (singles-only assumption)
     const { data: bestMatch, error: bestErr } = await supabase.rpc(
       "get_best_match",
-      { user_auth_id: user_id }
+      { user_auth_id: targetAuthId }
     );
     
     if (bestErr) throw bestErr;
@@ -204,7 +218,7 @@ export const getCardData = async (req, res) => {
     const { count: totalMatches, error: totalErr } = await supabase
       .from("match_players")
       .select("*", { count: "exact", head: true })
-      .eq("auth_id", user_id);
+      .eq("auth_id", targetAuthId);
     if (totalErr) throw totalErr;
     
     // Matches this week
@@ -213,7 +227,7 @@ export const getCardData = async (req, res) => {
     // const { count: weekMatches, error: weekErr } = await supabase
     //   .from("match_players")
     //   .select("*", { count: "exact", head: true })
-    //   .eq("auth_id", user_id)
+    //   .eq("auth_id", targetAuthId)
     //   .gte("created_at", oneWeekAgo); // no such field
     
     // if (weekErr) throw weekErr;
