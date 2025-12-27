@@ -37,6 +37,7 @@ The API listens on `PORT` and exposes a health check at `GET /` that returns `{ 
 | `POST` | `/signup` | Create a Supabase user, store profile with username/gender, and return the user row. | JSON: `{ email, username, password, gender }` |
 | `POST` | `/login` | Sign in with email or username plus password. Returns Supabase session. | JSON: `{ email? \| username?, password }` |
 | `GET` | `/check-username` | Validate whether a username is available. | Query: `username=<value>` |
+| `POST` | `/forgot-password` | Send a Supabase password reset email using email or username. Optional `SUPABASE_RESET_REDIRECT_URL` controls the reset link redirect. | JSON: `{ email? \| username? }` |
 
 ### Users (`/api/users`)
 

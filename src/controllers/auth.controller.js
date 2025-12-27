@@ -56,3 +56,19 @@ export const resendConfirmationEmail = async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 };
+
+export const sendPasswordResetEmail = async (req, res) => {
+  try {
+    const { email, username } = req.body;
+    const identifier = email || username;
+    const result = await authService.sendPasswordResetEmail(identifier);
+
+    if (result.error) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
