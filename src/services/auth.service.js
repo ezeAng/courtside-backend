@@ -177,3 +177,24 @@ export const resendConfirmationEmail = async (email) => {
 
   return { message: "Confirmation email resent" };
 };
+
+export const sendPasswordResetEmail = async (identifier) => {
+  const resolvedEmail = await resolveEmailForIdentifier(identifier);
+
+  if (resolvedEmail.error) {
+    return { error: resolvedEmail.error };
+  }
+
+  const redirectUrl = process.env.SUPABASE_RESET_REDIRECT_URL?.trim();
+
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(
+    resolvedEmail.email,
+    redirectUrl ? { redirectTo: redirectUrl } : undefined
+  );
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return { message: "Password reset email sent" };
+};
