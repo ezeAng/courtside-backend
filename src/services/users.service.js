@@ -84,7 +84,7 @@ export const getProfile = async (auth_id) => {
   const { data, error } = await supabase
     .from("users")
     .select(
-      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo"
+      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo, is_profile_private, share_contact_with_connections"
     )
     .eq("auth_id", auth_id)
     .single();
