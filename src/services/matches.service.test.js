@@ -254,8 +254,8 @@ test("confirmMatch updates singles singles_elo and history with discipline", asy
   const firstResult = await confirmMatch("match-1", "player-b", supabaseMock);
 
   assert.equal(firstResult.status, "confirmed");
-  assert.equal(firstResult.elo_change_side_a, 16);
-  assert.equal(firstResult.elo_change_side_b, -16);
+  assert.equal(firstResult.elo_change_side_a, 33);
+  assert.equal(firstResult.elo_change_side_b, -33);
   assert.equal(firstResult.discipline, "singles");
   assert.equal(supabaseMock.tables.elo_history.length, 2);
 
@@ -263,32 +263,32 @@ test("confirmMatch updates singles singles_elo and history with discipline", asy
   const playerBHistory = supabaseMock.tables.elo_history.find((row) => row.auth_id === "player-b");
 
   assert.equal(playerAHistory.old_elo, 1000);
-  assert.equal(playerAHistory.new_elo, 1016);
+  assert.equal(playerAHistory.new_elo, 1033);
   assert.equal(playerAHistory.old_overall_elo, null);
-  assert.equal(playerAHistory.new_overall_elo, 1016);
+  assert.equal(playerAHistory.new_overall_elo, 1033);
   assert.equal(playerAHistory.discipline, "singles");
   assert.equal(playerAHistory.created_at, playedAt);
   assert.equal(playerBHistory.old_elo, 1000);
-  assert.equal(playerBHistory.new_elo, 984);
+  assert.equal(playerBHistory.new_elo, 967);
   assert.equal(playerBHistory.old_overall_elo, null);
-  assert.equal(playerBHistory.new_overall_elo, 984);
+  assert.equal(playerBHistory.new_overall_elo, 967);
   assert.equal(playerBHistory.discipline, "singles");
   assert.equal(playerBHistory.created_at, playedAt);
 
   const [match] = supabaseMock.tables.matches;
   assert.equal(match.status, "confirmed");
-  assert.equal(match.elo_change_side_a, 16);
-  assert.equal(match.elo_change_side_b, -16);
+  assert.equal(match.elo_change_side_a, 33);
+  assert.equal(match.elo_change_side_b, -33);
 
   const playerA = supabaseMock.tables.users.find((u) => u.auth_id === "player-a");
   const playerB = supabaseMock.tables.users.find((u) => u.auth_id === "player-b");
 
   assert.equal(playerA.singles_matches_played, 1);
   assert.equal(playerA.doubles_matches_played, 0);
-  assert.equal(playerA.overall_elo, 1016);
+  assert.equal(playerA.overall_elo, 1033);
   assert.equal(playerB.singles_matches_played, 1);
   assert.equal(playerB.doubles_matches_played, 0);
-  assert.equal(playerB.overall_elo, 984);
+  assert.equal(playerB.overall_elo, 967);
 
   assert.equal(supabaseMock.rpcCalls.length, 1);
   assert.equal(supabaseMock.rpcCalls[0].fnName, "confirm_match_tx");
@@ -356,26 +356,26 @@ test("confirmMatch updates doubles ratings and history", async () => {
 
   assert.equal(result.status, "confirmed");
   assert.equal(result.discipline, "doubles");
-  assert.equal(result.elo_change_side_a, 16);
-  assert.equal(result.elo_change_side_b, -16);
+  assert.equal(result.elo_change_side_a, 33);
+  assert.equal(result.elo_change_side_b, -33);
 
   const updatedUsers = supabaseMock.tables.users.reduce(
     (acc, user) => ({ ...acc, [user.auth_id]: user.doubles_elo }),
     {}
   );
 
-  assert.equal(updatedUsers["player-a"], 1016);
-  assert.equal(updatedUsers["player-b"], 1016);
-  assert.equal(updatedUsers["player-c"], 984);
-  assert.equal(updatedUsers["player-d"], 984);
+  assert.equal(updatedUsers["player-a"], 1033);
+  assert.equal(updatedUsers["player-b"], 1033);
+  assert.equal(updatedUsers["player-c"], 967);
+  assert.equal(updatedUsers["player-d"], 967);
 
   supabaseMock.tables.elo_history.forEach((row) => {
     assert.equal(row.discipline, "doubles");
     assert.equal(row.old_overall_elo, null);
     if (["player-a", "player-b"].includes(row.auth_id)) {
-      assert.equal(row.new_overall_elo, 1016);
+      assert.equal(row.new_overall_elo, 1033);
     } else {
-      assert.equal(row.new_overall_elo, 984);
+      assert.equal(row.new_overall_elo, 967);
     }
   });
 
@@ -384,8 +384,8 @@ test("confirmMatch updates doubles ratings and history", async () => {
     assert.equal(user.doubles_matches_played, 1);
   });
 
-  assert.equal(supabaseMock.tables.users.find((u) => u.auth_id === "player-a").overall_elo, 1016);
-  assert.equal(supabaseMock.tables.users.find((u) => u.auth_id === "player-c").overall_elo, 984);
+  assert.equal(supabaseMock.tables.users.find((u) => u.auth_id === "player-a").overall_elo, 1033);
+  assert.equal(supabaseMock.tables.users.find((u) => u.auth_id === "player-c").overall_elo, 967);
 
   assert.equal(supabaseMock.rpcCalls.length, 1);
   assert.equal(supabaseMock.rpcCalls[0].fnName, "confirm_match_tx");
