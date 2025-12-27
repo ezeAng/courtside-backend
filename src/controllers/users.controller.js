@@ -104,8 +104,12 @@ export const listOtherUsers = async (req, res) => {
 
 export const updateProfile = async (req, res) => {
   try {
-    const user_id = req.user.auth_id;
-    
+    const authId = req.authUser?.auth_id || req.authUser?.id || req.user?.auth_id;
+
+    if (!authId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
     const {
       region,
       address,
@@ -115,35 +119,78 @@ export const updateProfile = async (req, res) => {
       is_profile_private,
       share_contact_with_connections,
       share_contact_with_connection,
-    } = req.body;
+      country_code,
+    } = req.body || {};
+
+    const updateData = {};
+    const assignIfDefined = (key, value) => {
+      if (value !== undefined) {
+        updateData[key] = value;
+      }
+    };
+
+    assignIfDefined("region", region);
+    assignIfDefined("address", address);
+    assignIfDefined("bio", bio);
+    assignIfDefined("profile_image_url", profile_image_url);
+    assignIfDefined("gender", gender);
+    assignIfDefined("is_profile_private", is_profile_private);
 
     const shareContactValue =
       typeof share_contact_with_connection === "boolean"
         ? share_contact_with_connection
         : share_contact_with_connections;
+
+    if (typeof shareContactValue === "boolean") {
+      updateData.share_contact_with_connections = shareContactValue;
+    }
+
+    if (country_code !== undefined && country_code !== null) {
+      if (typeof country_code !== "string") {
+        return res
+          .status(400)
+          .json({ success: false, message: "country_code must be a string" });
+      }
+
+      const normalizedCountry = country_code.trim();
+      const isValidCountry = /^[A-Z]{2}$/i.test(normalizedCountry);
+
+      if (!normalizedCountry || !isValidCountry) {
+        return res.status(400).json({ success: false, message: "Invalid country_code" });
+      }
+
+      updateData.country_code = normalizedCountry.toUpperCase();
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ success: false, message: "No fields to update" });
+    }
+
     const { data, error } = await supabase
       .from("users")
-      .update({
-        region,
-        address,
-        bio,
-        profile_image_url,
-        gender,
-        is_profile_private,
-        share_contact_with_connections: shareContactValue,
-      })
-      .eq("auth_id", user_id)
+      .update(updateData)
+      .eq("auth_id", authId)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === "PGRST116" || error.message?.toLowerCase().includes("row not found")) {
+        return res.status(404).json({ success: false, message: "User not found" });
+      }
+
+      return res.status(500).json({ success: false, message: "Failed to update profile" });
+    }
+
+    if (!data) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
 
     return res.json({
       success: true,
       user: data,
     });
   } catch (err) {
-    return res.status(400).json({
+    return res.status(500).json({
       success: false,
       message: err.message,
     });
