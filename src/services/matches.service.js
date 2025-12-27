@@ -487,28 +487,158 @@ export const getMatchById = async (match_id) => {
   return buildMatchResponse(match, players, userMap);
 };
 
-export const deleteMatch = async (match_id, requesterId) => {
-  const { data: match, error: matchError } = await supabase
+export const editPendingMatch = async (
+  match_id,
+  requesterId,
+  { match_type, players_team_A = [], players_team_B = [], winner_team, score, played_at } = {}
+) => {
+  const { match, error, status } = await loadMatchWithPlayers(match_id);
+  if (error) return { error, status };
+
+  if (match.status !== "pending") {
+    return { error: "Only pending matches can be edited", status: 400 };
+  }
+
+  if (match.submitted_by !== requesterId) {
+    return { error: "Not authorized to edit this match", status: 403 };
+  }
+
+  if (!["singles", "doubles"].includes(match_type)) {
+    return { error: "match_type must be 'singles' or 'doubles'", status: 400 };
+  }
+
+  if (!match_type) {
+    return { error: "match_type is required", status: 400 };
+  }
+
+  const normalizedScore = normalizeScoreInput(score);
+  if (!normalizedScore) {
+    return { error: "Invalid score format", status: 400 };
+  }
+
+  let parsedScore;
+  try {
+    parsedScore = parseScore(normalizedScore);
+  } catch (err) {
+    return { error: err.message, status: 400 };
+  }
+
+  if (parsedScore.is_draw && winner_team) {
+    return { error: "Cannot specify a winner for a drawn scoreline", status: 400 };
+  }
+
+  if (winner_team && parsedScore.winner_team && winner_team !== parsedScore.winner_team) {
+    return { error: "Provided winner does not match parsed score", status: 400 };
+  }
+
+  if (match_type === "singles") {
+    if (players_team_A.length !== 1 || players_team_B.length !== 1) {
+      return { error: "Singles match requires one player per team", status: 400 };
+    }
+  } else if (match_type === "doubles") {
+    if (players_team_A.length !== 2 || players_team_B.length !== 2) {
+      return { error: "Doubles match requires two players per team", status: 400 };
+    }
+  }
+
+  const allPlayers = [...players_team_A, ...players_team_B];
+  const uniquePlayers = new Set(allPlayers.filter(Boolean));
+  if (uniquePlayers.size !== allPlayers.length) {
+    return { error: "Duplicate players detected across teams", status: 400 };
+  }
+
+  if (!uniquePlayers.has(requesterId)) {
+    return { error: "Submitter must be one of the players", status: 400 };
+  }
+
+  const resolvedWinner = winner_team || parsedScore.winner_team || null;
+  const confirmationList = [
+    ...new Set(
+      buildConfirmationList(match_type, players_team_A, players_team_B, requesterId).filter(
+        Boolean
+      )
+    ),
+  ];
+
+  const playedAtValue = played_at || match.played_at || new Date().toISOString();
+  const submittedAtValue = new Date().toISOString();
+
+  const { data: updatedMatch, error: updateError } = await supabase
     .from("matches")
-    .select("*")
+    .update({
+      match_type,
+      score: normalizedScore,
+      played_at: playedAtValue,
+      status: "pending",
+      submitted_by: requesterId,
+      submitted_at: submittedAtValue,
+      needs_confirmation_from_list: confirmationList,
+    })
     .eq("match_id", match_id)
+    .select("*")
     .single();
 
-  if (matchError) {
-    const status = matchError.code === "PGRST116" ? 404 : 400;
-    return { error: matchError.message, status };
+  if (updateError) {
+    return { error: updateError.message, status: 400 };
+  }
+
+  const { error: deleteError } = await supabase.from("match_players").delete().eq("match_id", match_id);
+  if (deleteError) {
+    return { error: deleteError.message, status: 400 };
+  }
+
+  const playerRows = [];
+
+  players_team_A.forEach((auth_id) => {
+    playerRows.push({
+      match_id,
+      auth_id,
+      team: "A",
+      is_winner: resolvedWinner === "A",
+    });
+  });
+
+  players_team_B.forEach((auth_id) => {
+    playerRows.push({
+      match_id,
+      auth_id,
+      team: "B",
+      is_winner: resolvedWinner === "B",
+    });
+  });
+
+  const { error: insertError } = await supabase.from("match_players").insert(playerRows);
+  if (insertError) {
+    return { error: insertError.message, status: 400 };
+  }
+
+  const { matchPlayers, userMap, error: fetchError } = await fetchPlayersWithUsers([match_id]);
+  if (fetchError) return { error: fetchError };
+
+  const players = matchPlayers.filter((p) => p.match_id === match_id);
+  const response = buildMatchResponse(updatedMatch, players, userMap);
+
+  return {
+    ...response,
+    needs_confirmation_from_list: confirmationList,
+  };
+};
+
+export const deleteMatch = async (match_id, requesterId) => {
+  const { match, error, status } = await loadMatchWithPlayers(match_id);
+  if (error) return { error, status };
+
+  if (match.status !== "pending") {
+    return { error: "Only pending matches can be deleted", status: 400 };
   }
 
   if (match.submitted_by !== requesterId) {
     return { error: "Not authorized to delete this match", status: 403 };
   }
 
-  const { error: deleteError } = await supabase
-    .from("matches")
-    .delete()
-    .eq("match_id", match_id);
+  const { error: deleteError } = await supabase.from("matches").delete().eq("match_id", match_id);
 
-  if (deleteError) return { error: deleteError.message };
+  if (deleteError) return { error: deleteError.message, status: 400 };
 
   return { message: "Match deleted successfully" };
 };

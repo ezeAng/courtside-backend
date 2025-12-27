@@ -7,6 +7,7 @@ import {
   getH2HRivals,
   getMatchesForUser,
   getMatchById,
+  editMatch,
   deleteMatch,
   getRecentMatches,
   getPendingMatches,
@@ -24,6 +25,7 @@ router.post("/create", requireAuth, createMatch);
 router.post("/:match_id/cancel", requireAuth, cancelMatch);
 router.post("/:match_id/submit-score", requireAuth, submitMatchScore);
 router.post("/:matchId/video", requireAuth, addMatchVideoLink);
+router.put("/:match_id", requireAuth, editMatch);
 
 // READ (specific → generic)
 router.get("/pending", requireAuth, getPendingMatches);
