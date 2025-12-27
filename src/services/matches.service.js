@@ -504,6 +504,10 @@ export const editPendingMatch = async (
     return { error: "Not authorized to edit this match", status: 403 };
   }
 
+  if (!["singles", "doubles"].includes(match_type)) {
+    return { error: "match_type must be 'singles' or 'doubles'", status: 400 };
+  }
+
   if (!match_type) {
     return { error: "match_type is required", status: 400 };
   }
@@ -544,6 +548,10 @@ export const editPendingMatch = async (
     return { error: "Duplicate players detected across teams", status: 400 };
   }
 
+  if (!uniquePlayers.has(requesterId)) {
+    return { error: "Submitter must be one of the players", status: 400 };
+  }
+
   const resolvedWinner = winner_team || parsedScore.winner_team || null;
   const confirmationList = [
     ...new Set(
@@ -554,6 +562,7 @@ export const editPendingMatch = async (
   ];
 
   const playedAtValue = played_at || match.played_at || new Date().toISOString();
+  const submittedAtValue = new Date().toISOString();
 
   const { data: updatedMatch, error: updateError } = await supabase
     .from("matches")
@@ -563,6 +572,7 @@ export const editPendingMatch = async (
       played_at: playedAtValue,
       status: "pending",
       submitted_by: requesterId,
+      submitted_at: submittedAtValue,
       needs_confirmation_from_list: confirmationList,
     })
     .eq("match_id", match_id)
