@@ -109,6 +109,33 @@ export const deleteMatch = async (req, res) => {
   }
 };
 
+export const editMatch = async (req, res) => {
+  try {
+    const { match_id } = req.params;
+    const requesterId = req.user?.auth_id || req.authUser?.auth_id;
+    const { match_type, players_team_A, players_team_B, winner_team, score, played_at } =
+      req.body || {};
+
+    const result = await matchesService.editPendingMatch(match_id, requesterId, {
+      match_type,
+      players_team_A,
+      players_team_B,
+      winner_team,
+      score,
+      played_at,
+    });
+
+    if (result?.error) {
+      const status = result.status || 400;
+      return res.status(status).json(result);
+    }
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 export const getPendingMatches = async (req, res) => {
   try {
     const userId = req.user?.auth_id || req.authUser?.auth_id;
