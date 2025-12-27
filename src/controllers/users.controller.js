@@ -106,7 +106,21 @@ export const updateProfile = async (req, res) => {
   try {
     const user_id = req.user.auth_id;
     
-    const { region, address, bio, profile_image_url, gender } = req.body;
+    const {
+      region,
+      address,
+      bio,
+      profile_image_url,
+      gender,
+      is_profile_private,
+      share_contact_with_connections,
+      share_contact_with_connection,
+    } = req.body;
+
+    const shareContactValue =
+      typeof share_contact_with_connection === "boolean"
+        ? share_contact_with_connection
+        : share_contact_with_connections;
     const { data, error } = await supabase
       .from("users")
       .update({
@@ -114,7 +128,9 @@ export const updateProfile = async (req, res) => {
         address,
         bio,
         profile_image_url,
-        gender
+        gender,
+        is_profile_private,
+        share_contact_with_connections: shareContactValue,
       })
       .eq("auth_id", user_id)
       .select()
