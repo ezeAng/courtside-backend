@@ -48,9 +48,12 @@ export const searchUsers = async (req, res) => {
 export const getRecommendedUsers = async (req, res) => {
   try {
     const authId = req.authUser?.id || req.authUser?.auth_id;
-    const { mode, region, limit } = req.query;
+    const { mode, region, limit, gender } = req.query;
 
-    const result = await connectionsService.getRecommendedUsers(authId, mode, region, { limit });
+    const result = await connectionsService.getRecommendedUsers(authId, mode, region, {
+      limit,
+      gender,
+    });
 
     if (result?.error) {
       return res.status(result.status || 400).json({ error: result.error });
