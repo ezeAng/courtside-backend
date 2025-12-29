@@ -3,6 +3,7 @@ import { supabase } from "../config/supabase.js";
 const PROFILE_FIELDS = [
   "auth_id",
   "username",
+  "gender",
   "profile_image_url",
   "bio",
   "region",
@@ -84,6 +85,7 @@ export const getRecommendedUsers = async (authId, mode, region, options = {}) =>
   const normalizedMode = mode?.toLowerCase();
   const limit = normalizeLimit(options.limit);
   const fetchLimit = Math.min(limit * 5, 200);
+  const gender = options.gender?.toLowerCase();
 
   if (!normalizedMode || !["singles", "doubles"].includes(normalizedMode)) {
     return { error: "mode must be either singles or doubles", status: 400 };
@@ -116,7 +118,21 @@ export const getRecommendedUsers = async (authId, mode, region, options = {}) =>
 
   if (error) throw new Error(error.message);
 
-  const filtered = (data || []).filter((user) => !excludedIds.has(user.auth_id));
+  const filtered = (data || []).filter((user) => {
+    if (excludedIds.has(user.auth_id)) {
+      return false;
+    }
+
+    if (gender && user.gender?.toLowerCase() !== gender) {
+      return false;
+    }
+
+    return true;
+  });
+
+  if (gender && filtered.length === 0) {
+    return { results: [] };
+  }
 
   const ranked = filtered
     .map((user) => ({
