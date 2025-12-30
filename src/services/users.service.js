@@ -274,43 +274,76 @@ export const listOtherUsers = async (auth_id) => {
   return data;
 };
 
-// ---------------- DELETE USER ----------------
+// ---------------- DELETE USER (SOFT DELETE + ANONYMISATION) ----------------
 export const deleteUserAndData = async (authId) => {
   const errors = [];
 
-  const handleStep = async (operation) => {
+  const handleStep = async (operation, ignoreNotFound = true) => {
     const { error } = await operation();
-
-    if (error && error.message?.toLowerCase() !== "object not found") {
+    if (error && (!ignoreNotFound || error.code !== "PGRST116")) {
       errors.push(error.message);
     }
   };
 
+  // These are SAFE to delete because they are not historical
   await handleStep(() =>
     supabase
-      .from("matchmaking_queue")
+      .from("connections")
       .delete()
+      .or(`user_id.eq.${authId},connected_user_id.eq.${authId}`)
+  );
+
+  await handleStep(() =>
+    supabase
+      .from("connection_requests")
+      .delete()
+      .or(`from_user_id.eq.${authId},to_user_id.eq.${authId}`)
+  );
+
+  // Anonymise user profile (DO NOT DELETE ROW)
+  const anonymisedUsername = `deleted_${authId.slice(0, 8)}`;
+
+  await handleStep(() =>
+    supabase
+      .from("users")
+      .update({
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        anonymized_at: new Date().toISOString(),
+
+        // Anonymised fields
+        username: anonymisedUsername,
+        profile_image_url: null,
+        bio: null,
+        address: null,
+        region: null,
+        phone_number: null,
+        contact_email: null,
+        share_contact_with_connections: false,
+        is_profile_private: true,
+      })
       .eq("auth_id", authId)
   );
 
+  // Remove profile image (optional, safe)
   await handleStep(() =>
-    supabase
-      .from("elo_history")
-      .delete()
-      .eq("auth_id", authId)
+    supabase.storage
+      .from("profile-images")
+      .remove([`users/${authId}.jpg`])
   );
 
-  await handleStep(() =>
-    supabase.storage.from("profile-images").remove([`users/${authId}.jpg`])
+  // Disable auth access (DO NOT hard delete)
+  // This prevents login but keeps ID for historical references
+  await handleStep(
+    () =>
+      supabase.auth.admin.updateUserById(authId, {
+        user_metadata: { is_deleted: true },
+        app_metadata: { disabled: true },
+      }),
+    false
   );
 
-  await handleStep(() => supabase.from("users").delete().eq("auth_id", authId));
-
-  const { error: authError } = await supabase.auth.admin.deleteUser(authId);
-  if (authError) {
-    errors.push(authError.message);
-  }
-
+  // FINAL RESULT
   if (errors.length > 0) {
     return { success: false, errors };
   }
