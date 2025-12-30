@@ -63,7 +63,6 @@ export const signup = async (email, username, password, gender) => {
     });
 
   if (authError) {
-    console.log(authError)
     if (authError.message?.toLowerCase().includes("user not allowed")) {
       return {
         error:

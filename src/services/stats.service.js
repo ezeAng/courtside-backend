@@ -25,7 +25,6 @@ export const getEloSeries = async (
   });
 
   if (error) {
-    console.log(error)
     return { error: error.message };
   }
 

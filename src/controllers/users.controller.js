@@ -20,7 +20,7 @@ export const getUserContact = async (req, res) => {
     const targetAuthId = req.params?.auth_id;
 
     const result = await userService.getContactDetailsForConnection(requesterAuthId, targetAuthId);
-
+    
     if (result?.error) {
       const status = result.status || 400;
       const message = status === 404 ? "User not found" : "Forbidden";
@@ -120,6 +120,8 @@ export const updateProfile = async (req, res) => {
       profile_image_url,
       gender,
       is_profile_private,
+      phone_number,
+      contact_email,
       share_contact_with_connections,
       share_contact_with_connection,
       country_code,
@@ -138,6 +140,8 @@ export const updateProfile = async (req, res) => {
     assignIfDefined("profile_image_url", profile_image_url);
     assignIfDefined("gender", gender);
     assignIfDefined("is_profile_private", is_profile_private);
+    assignIfDefined("phone_number", phone_number);
+    assignIfDefined("contact_email", contact_email);
 
     const shareContactValue =
       typeof share_contact_with_connection === "boolean"

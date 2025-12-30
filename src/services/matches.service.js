@@ -259,7 +259,6 @@ export const createMatch = async (
       ])
       .select()
       .single();
-    console.log(match, matchError)
     if (matchError) return { error: matchError.message };
 
     const playerRows = [];
