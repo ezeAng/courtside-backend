@@ -151,9 +151,11 @@ export const confirmMatch = async (req, res) => {
   try {
     const userId = req.user?.auth_id || req.authUser?.auth_id;
     const { matchId } = req.params;
+    
     const result = await matchesService.confirmMatch(matchId, userId);
     res.json(result);
   } catch (err) {
+    console.log(err0)
     const status = err.status || 500;
     res.status(status).json({ error: err.message });
   }

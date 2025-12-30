@@ -717,7 +717,7 @@ const buildUpsetDetails = (winner_team, matchPlayers, eloMap) => {
   }
 
   const elo_gap = opponent_avg_elo - winner_avg_elo;
-
+  
   return {
     is_upset: elo_gap > 0,
     winner_avg_elo,
@@ -732,11 +732,11 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
     .select("*")
     .eq("match_id", matchId)
     .single();
-
+  
   if (loadErr || !match) throw buildError("Match not found", 404);
   if (match.status === "confirmed") throw buildError("Match already confirmed", 409);
   if (match.status !== "pending") throw buildError("Match already processed", 400);
-
+  
   if (
     Array.isArray(match.needs_confirmation_from_list) &&
     !match.needs_confirmation_from_list.includes(userId)
@@ -766,9 +766,9 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
     throw buildError("Confirmation must come from the opposing team", 403);
   }
 
-  const discipline = match.discipline || match.match_type || "singles";
-  if (match.match_type && match.discipline && match.match_type !== match.discipline) {
-    throw buildError("Match type and discipline mismatch", 400);
+  const discipline = match.match_type || "singles";
+  if (!match.match_type) {
+    throw buildError("No match type found", 400);
   }
 
   const teamA = matchPlayers.filter((p) => p.team === "A").map((p) => p.auth_id);
@@ -856,7 +856,6 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
   const deltaA = roundDelta(rawDeltaA);
   const deltaB = roundDelta(rawDeltaB);
 
-  // ✅ IMPORTANT: build updates BEFORE calling RPC
   const teamAUpdatesRaw = teamA.map((auth_id) => {
     const old_elo = eloMap.get(auth_id) ?? DEFAULT_ELO;
     return { auth_id, old_elo, new_elo: old_elo + deltaA };
@@ -871,7 +870,7 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
 
   const confirmedAt = new Date().toISOString();
   const playedAt = match.played_at ?? confirmedAt;
-
+  
   const { data: txResult, error: txError } = await client.rpc("confirm_match_tx", {
     p_match_id: matchId,
     p_discipline: discipline,
@@ -884,7 +883,6 @@ export const confirmMatch = async (matchId, userId, client = supabase) => {
 
   if (txError) throw buildError(txError.message, 400);
 
-  // ✅ confirm_match_tx returns: { updated: N, players: [...] }
   const enrichedMap = new Map(
     (txResult?.players || []).map((u) => [u.auth_id, u])
   );
