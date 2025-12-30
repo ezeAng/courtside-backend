@@ -43,8 +43,8 @@ The API listens on `PORT` and exposes a health check at `GET /` that returns `{ 
 
 | Method | Path | Auth? | Description | Request body/query |
 | --- | --- | --- | --- | --- |
-| `GET` | `/me` | ✅ | Fetch the authenticated user's profile (auth_id, username, gender, avatar, singles_elo, doubles_elo, overall_elo). | – |
-| `PUT` | `/update` | ✅ | Update username, gender, or avatar (0-9). | JSON: `{ username?, gender?, avatar? }` |
+| `GET` | `/me` | ✅ | Fetch the authenticated user's profile (auth_id, username, gender, singles_elo, doubles_elo, overall_elo). | – |
+| `PUT` | `/update` | ✅ | Update username, gender, or avatar (0-9). | JSON: `{ username?, gender? }` |
 | `GET` | `/search` | ❌ | Search users by username (optional gender filter). Results sorted by singles ELO by default or doubles ELO when `discipline=doubles`. | Query: `query=<text>&gender=<male|female|mixed?>&discipline=<singles|doubles?>` |
 | `GET` | `/others` | ✅ | List other users excluding the requester, sorted by ELO. | – |
 

@@ -84,7 +84,7 @@ export const getProfile = async (auth_id) => {
   const { data, error } = await supabase
     .from("users")
     .select(
-      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo, is_profile_private, share_contact_with_connections, country_code, phone_number, contact_email"
+      "auth_id, username, gender, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo, is_profile_private, share_contact_with_connections, country_code, phone_number, contact_email"
     )
     .eq("auth_id", auth_id)
     .single();
@@ -106,7 +106,7 @@ export const searchUsernames = async (query, options = {}) => {
 
   let supabaseQuery = supabase
     .from("users")
-    .select("auth_id, username, profile_image_url, avatar, gender, singles_elo, doubles_elo, overall_elo")
+    .select("auth_id, username, profile_image_url, gender, singles_elo, doubles_elo, overall_elo")
     .ilike("username", `${trimmedQuery}%`)
     .order("username", { ascending: true })
     .limit(limit + 1);
@@ -181,7 +181,7 @@ export const getUserProfileWithStats = async (username) => {
   const { data: user, error: userError } = await supabase
     .from("users")
     .select(
-      "auth_id, username, gender, avatar, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo"
+      "auth_id, username, gender, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo"
     )
     .eq("username", normalizedUsername)
     .maybeSingle();
