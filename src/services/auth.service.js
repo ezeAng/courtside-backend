@@ -165,7 +165,8 @@ export const resendConfirmationEmail = async (email) => {
     return { error: "User not found" };
   }
 
-  const { error: resendError } = await supabaseClient.auth.resend({
+  // MUST use admin client
+  const { error: resendError } = await supabaseAdmin.auth.resend({
     type: "signup",
     email: normalizedEmail,
   });
@@ -176,6 +177,7 @@ export const resendConfirmationEmail = async (email) => {
 
   return { message: "Confirmation email resent" };
 };
+
 
 export const sendPasswordResetEmail = async (identifier) => {
   const resolvedEmail = await resolveEmailForIdentifier(identifier);
