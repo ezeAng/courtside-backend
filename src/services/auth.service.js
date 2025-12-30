@@ -186,9 +186,11 @@ export const sendPasswordResetEmail = async (identifier) => {
 
   const redirectUrl = process.env.SUPABASE_RESET_REDIRECT_URL?.trim();
 
+  const options = redirectUrl ? { redirectTo: redirectUrl } : undefined;
+
   const { error } = await supabaseClient.auth.resetPasswordForEmail(
     resolvedEmail.email,
-    redirectUrl ? { redirectTo: redirectUrl } : undefined
+    options
   );
 
   if (error) {
@@ -196,4 +198,28 @@ export const sendPasswordResetEmail = async (identifier) => {
   }
 
   return { message: "Password reset email sent" };
+};
+
+export const resetPassword = async (accessToken, newPassword) => {
+  if (!accessToken) {
+    return { error: "Missing access token" };
+  }
+
+  if (!newPassword) {
+    return { error: "New password is required" };
+  }
+
+  const { data, error } = await supabaseClient.auth.updateUser(
+    { password: newPassword },
+    { accessToken }
+  );
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return {
+    message: "Password updated successfully",
+    user: data.user,
+  };
 };
