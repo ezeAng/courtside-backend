@@ -49,7 +49,7 @@ export const getRecommendedUsers = async (req, res) => {
   try {
     const authId = req.authUser?.id || req.authUser?.auth_id;
     const { mode, region, limit, gender } = req.query;
-
+      
     const result = await connectionsService.getRecommendedUsers(authId, mode, region, {
       limit,
       gender,

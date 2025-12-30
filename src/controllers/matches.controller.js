@@ -155,7 +155,6 @@ export const confirmMatch = async (req, res) => {
     const result = await matchesService.confirmMatch(matchId, userId);
     res.json(result);
   } catch (err) {
-    console.log(err0)
     const status = err.status || 500;
     res.status(status).json({ error: err.message });
   }

@@ -65,7 +65,7 @@ export const searchUsersForConnections = async (authId, query, options = {}) => 
     return { results: [] };
   }
 
-  const excludedIds = await getExcludedAuthIds(authId);
+  const excludedIds = new Set(); //await getExcludedAuthIds(authId); // Dont exclude anyone yet
 
   const { data, error } = await supabase
     .from("users")
@@ -76,7 +76,7 @@ export const searchUsersForConnections = async (authId, query, options = {}) => 
 
   if (error) throw new Error(error.message);
 
-  const filtered = (data || []).filter((user) => !excludedIds.has(user.auth_id)).slice(0, limit);
+  const filtered = (data || []).filter((user) => !excludedIds?.has(user.auth_id)).slice(0, limit);
 
   return { results: filtered };
 };
@@ -85,7 +85,7 @@ export const getRecommendedUsers = async (authId, mode, region, options = {}) =>
   const normalizedMode = mode?.toLowerCase();
   const limit = normalizeLimit(options.limit);
   const fetchLimit = Math.min(limit * 5, 200);
-  const gender = options.gender?.toLowerCase();
+  const gender = options.gender?.toLowerCase() === "any" ? null : options.gender?.toLowerCase();
 
   if (!normalizedMode || !["singles", "doubles"].includes(normalizedMode)) {
     return { error: "mode must be either singles or doubles", status: 400 };
@@ -352,7 +352,7 @@ export const listOutgoingRequests = async (authId) => {
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
-
+  
   const receiverIds = (data || []).map((request) => request.receiver_auth_id);
   const profiles = await fetchProfilesByAuthIds(receiverIds, REQUEST_PROFILE_FIELDS);
 

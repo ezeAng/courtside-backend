@@ -57,8 +57,7 @@ export const listIncomingRequests = async (req, res) => {
   try {
     const authId = getAuthId(req);
     const results = await connectionsService.listIncomingRequests(authId);
-
-    return res.status(200).json({ results });
+    return res.status(200).json(results);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -68,8 +67,7 @@ export const listOutgoingRequests = async (req, res) => {
   try {
     const authId = getAuthId(req);
     const results = await connectionsService.listOutgoingRequests(authId);
-
-    return res.status(200).json({ results });
+    return res.status(200).json(results);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -80,7 +78,7 @@ export const listConnections = async (req, res) => {
     const authId = getAuthId(req);
     const results = await connectionsService.listConnections(authId);
 
-    return res.status(200).json({ results });
+    return res.status(200).json(results);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
