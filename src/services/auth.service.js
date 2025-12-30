@@ -186,12 +186,11 @@ export const sendPasswordResetEmail = async (identifier) => {
 
   const redirectUrl = process.env.SUPABASE_RESET_REDIRECT_URL?.trim();
 
-  const options = redirectUrl ? { redirectTo: redirectUrl } : undefined;
-
   const { error } = await supabaseClient.auth.resetPasswordForEmail(
     resolvedEmail.email,
-    options
+    { redirectTo: redirectUrl }
   );
+
 
   if (error) {
     return { error: error.message };
@@ -202,24 +201,35 @@ export const sendPasswordResetEmail = async (identifier) => {
 
 export const resetPassword = async (accessToken, newPassword) => {
   if (!accessToken) {
-    return { error: "Missing access token" };
+    return { error: "Missing recovery token" };
   }
 
   if (!newPassword) {
     return { error: "New password is required" };
   }
 
-  const { data, error } = await supabaseClient.auth.updateUser(
-    { password: newPassword },
-    { accessToken }
-  );
+  // 1. Resolve user from recovery token
+  const { data: userData, error: userError } =
+    await supabaseAdmin.auth.getUser(accessToken);
 
-  if (error) {
-    return { error: error.message };
+  if (userError || !userData?.user) {
+    return { error: "Invalid or expired recovery token" };
+  }
+
+  const userId = userData.user.id;
+
+  // 2. Update password using Admin API
+  const { error: updateError } =
+    await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password: newPassword,
+    });
+
+  if (updateError) {
+    return { error: updateError.message };
   }
 
   return {
     message: "Password updated successfully",
-    user: data.user,
   };
 };
+
