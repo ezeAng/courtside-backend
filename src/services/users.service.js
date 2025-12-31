@@ -1,4 +1,4 @@
-import { supabase } from "../config/supabase.js";
+import { supabase, supabaseAdmin } from "../config/supabase.js";
 
 const buildTierInfo = (rating = 0) => {
   let tier = "Bronze";
@@ -290,14 +290,14 @@ export const deleteUserAndData = async (authId) => {
     supabase
       .from("connections")
       .delete()
-      .or(`user_id.eq.${authId},connected_user_id.eq.${authId}`)
+      .or(`user_a_auth_id.eq.${authId},user_b_auth_id.eq.${authId}`)
   );
 
   await handleStep(() =>
     supabase
       .from("connection_requests")
       .delete()
-      .or(`from_user_id.eq.${authId},to_user_id.eq.${authId}`)
+      .or(`sender_auth_id.eq.${authId},receiver_auth_id.eq.${authId}`)
   );
 
   // Anonymise user profile (DO NOT DELETE ROW)
@@ -336,7 +336,7 @@ export const deleteUserAndData = async (authId) => {
   // This prevents login but keeps ID for historical references
   await handleStep(
     () =>
-      supabase.auth.admin.updateUserById(authId, {
+      supabaseAdmin.auth.admin.updateUserById(authId, {
         user_metadata: { is_deleted: true },
         app_metadata: { disabled: true },
       }),
@@ -345,6 +345,7 @@ export const deleteUserAndData = async (authId) => {
 
   // FINAL RESULT
   if (errors.length > 0) {
+    console.log(errors)
     return { success: false, errors };
   }
 
