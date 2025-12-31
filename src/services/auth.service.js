@@ -1,5 +1,9 @@
 import { supabaseAdmin, supabaseClient } from "../config/supabase.js";
 
+const DEFAULT_ELO = 1000;
+const MIN_ELO = 800;
+const MAX_ELO = 1800;
+
 const normalizeIdentifier = (value) => value?.trim().toLowerCase();
 
 const resolveEmailForIdentifier = async (identifier) => {
@@ -30,14 +34,29 @@ const resolveEmailForIdentifier = async (identifier) => {
   return { email: data.email };
 };
 
+const resolveSeedElo = (input) => {
+  const parsed = Number.parseInt(input, 10);
+
+  if (!Number.isInteger(parsed)) {
+    return DEFAULT_ELO;
+  }
+
+  if (parsed < MIN_ELO) return MIN_ELO;
+  if (parsed > MAX_ELO) return MAX_ELO;
+
+  return parsed;
+};
+
 // ---------------- SIGNUP ----------------
-export const signup = async (email, username, password, gender) => {
+export const signup = async (email, username, password, gender, seedEloInput) => {
   const normalizedEmail = normalizeIdentifier(email);
   const normalizedUsername = normalizeIdentifier(username);
-  
+
   if (!normalizedEmail || !normalizedUsername || !password) {
     return { error: "Email, username, and password are required" };
   }
+
+  const seedElo = resolveSeedElo(seedEloInput);
 
   const { data: existingUsername, error: usernameError } = await supabaseAdmin
     .from("users")
@@ -83,6 +102,9 @@ export const signup = async (email, username, password, gender) => {
         email: normalizedEmail,
         username: normalizedUsername,
         gender,
+        singles_elo: seedElo,
+        doubles_elo: seedElo,
+        overall_elo: seedElo,
       },
     ])
     .select()
@@ -234,4 +256,3 @@ export const resetPassword = async (accessToken, newPassword) => {
     message: "Password updated successfully",
   };
 };
-
