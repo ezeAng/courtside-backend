@@ -6,6 +6,7 @@ const MAX_SETS = 3;
 const DRAW_BONUS = 5;
 const CLAMP_MIN = -60;
 const CLAMP_MAX = 60;
+const VARIABILITY_SCALE = 1.25;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -48,7 +49,7 @@ export const computeEloDelta = ({ ratingA, ratingB, scoreA, parsedScore, kFactor
   const upsetFactor = 1 + GAMMA * Math.abs(scoreA - expectedScoreA);
 
   const baseDelta = kFactor * (scoreA - expectedScoreA);
-  const deltaAUnclamped = baseDelta * marginOfVictory * upsetFactor;
+  const deltaAUnclamped = baseDelta * marginOfVictory * upsetFactor * VARIABILITY_SCALE;
   const deltaA = clamp(deltaAUnclamped, CLAMP_MIN, CLAMP_MAX);
 
   return {
