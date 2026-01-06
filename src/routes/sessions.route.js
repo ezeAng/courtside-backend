@@ -7,6 +7,8 @@ import {
   joinSession,
   leaveSession,
   cancelSession,
+  updateSession,
+  deleteSession,
 } from "../controllers/sessions.controller.js";
 
 const router = Router();
@@ -14,8 +16,10 @@ const router = Router();
 router.post("/sessions", requireAuth, createSession);
 router.get("/sessions", requireAuth, listSessions);
 router.get("/sessions/:sessionId", requireAuth, getSessionById);
+router.put("/sessions/:sessionId", requireAuth, updateSession);
 router.post("/sessions/:sessionId/join", requireAuth, joinSession);
 router.post("/sessions/:sessionId/leave", requireAuth, leaveSession);
 router.post("/sessions/:sessionId/cancel", requireAuth, cancelSession);
+router.delete("/sessions/:sessionId", requireAuth, deleteSession);
 
 export default router;
