@@ -8,6 +8,8 @@ const ERROR_CODES = {
   NOT_A_PARTICIPANT: "NOT_A_PARTICIPANT",
   NOT_HOST: "NOT_HOST",
   UNAUTHORIZED: "UNAUTHORIZED",
+  INVALID_CAPACITY: "INVALID_CAPACITY",
+  INVALID_UPDATES: "INVALID_UPDATES",
 };
 
 const buildError = (code, status = 400) => ({ error: code, status });
@@ -22,6 +24,7 @@ export const createSession = async (sessionInput, hostAuthId) => {
     "capacity",
     "session_date",
     "session_time",
+    "session_end_time",
     "venue_name",
     "hall",
     "court_number",
@@ -308,6 +311,80 @@ export const joinSession = async (sessionId, userAuthId) => {
   return { success: true };
 };
 
+export const updateSession = async (sessionId, hostAuthId, updates) => {
+  const { data: session, error: sessionError } = await supabase
+    .from("sessions")
+    .select("host_auth_id")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (sessionError) {
+    const isNotFound = sessionError.code === "PGRST116";
+    return buildError(ERROR_CODES.SESSION_NOT_FOUND, isNotFound ? 404 : 400);
+  }
+
+  if (!session) {
+    return buildError(ERROR_CODES.SESSION_NOT_FOUND, 404);
+  }
+
+  if (session.host_auth_id !== hostAuthId) {
+    return buildError(ERROR_CODES.NOT_HOST, 403);
+  }
+
+  const allowedFields = [
+    "title",
+    "description",
+    "format",
+    "capacity",
+    "session_date",
+    "session_time",
+    "session_end_time",
+    "venue_name",
+    "hall",
+    "court_number",
+    "is_public",
+    "min_elo",
+    "max_elo",
+  ];
+
+  const updateData = Object.entries(updates || {}).reduce((acc, [key, value]) => {
+    if (allowedFields.includes(key) && value !== undefined) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+
+  if (Object.keys(updateData).length === 0) {
+    return buildError(ERROR_CODES.INVALID_UPDATES, 400);
+  }
+
+  if (updateData.capacity !== undefined) {
+    const { count: participantCount, error: countError } = await supabase
+      .from("session_participants")
+      .select("id", { count: "exact", head: true })
+      .eq("session_id", sessionId);
+
+    if (countError) {
+      return { error: countError.message, status: 400 };
+    }
+
+    if (typeof updateData.capacity === "number" && participantCount > updateData.capacity) {
+      return buildError(ERROR_CODES.INVALID_CAPACITY, 400);
+    }
+  }
+
+  const { error: updateError } = await supabase
+    .from("sessions")
+    .update(updateData)
+    .eq("id", sessionId);
+
+  if (updateError) {
+    return { error: updateError.message, status: 400 };
+  }
+
+  return { success: true };
+};
+
 export const leaveSession = async (sessionId, userAuthId) => {
   const { data: session, error: sessionError } = await supabase
     .from("sessions")
@@ -393,6 +470,44 @@ export const cancelSession = async (sessionId, hostAuthId) => {
 
   if (updateError) {
     return { error: updateError.message, status: 400 };
+  }
+
+  return { success: true };
+};
+
+export const deleteSession = async (sessionId, hostAuthId) => {
+  const { data: session, error: sessionError } = await supabase
+    .from("sessions")
+    .select("host_auth_id")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (sessionError) {
+    const isNotFound = sessionError.code === "PGRST116";
+    return buildError(ERROR_CODES.SESSION_NOT_FOUND, isNotFound ? 404 : 400);
+  }
+
+  if (!session) {
+    return buildError(ERROR_CODES.SESSION_NOT_FOUND, 404);
+  }
+
+  if (session.host_auth_id !== hostAuthId) {
+    return buildError(ERROR_CODES.NOT_HOST, 403);
+  }
+
+  const { error: participantsError } = await supabase
+    .from("session_participants")
+    .delete()
+    .eq("session_id", sessionId);
+
+  if (participantsError) {
+    return { error: participantsError.message, status: 400 };
+  }
+
+  const { error: deleteError } = await supabase.from("sessions").delete().eq("id", sessionId);
+
+  if (deleteError) {
+    return { error: deleteError.message, status: 400 };
   }
 
   return { success: true };

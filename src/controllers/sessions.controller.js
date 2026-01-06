@@ -23,6 +23,28 @@ export const createSession = async (req, res) => {
   }
 };
 
+export const updateSession = async (req, res) => {
+  try {
+    const hostAuthId = getAuthId(req);
+    const { sessionId } = req.params;
+
+    if (!hostAuthId) {
+      return res.status(401).json({ error: "UNAUTHORIZED" });
+    }
+
+    const result = await sessionsService.updateSession(sessionId, hostAuthId, req.body || {});
+
+    if (result?.error) {
+      const status = result.status || 400;
+      return res.status(status).json({ error: result.error });
+    }
+
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 export const listSessions = async (req, res) => {
   try {
     const authId = getAuthId(req);
@@ -110,6 +132,28 @@ export const cancelSession = async (req, res) => {
     }
 
     const result = await sessionsService.cancelSession(sessionId, authId);
+
+    if (result?.error) {
+      const status = result.status || 400;
+      return res.status(status).json({ error: result.error });
+    }
+
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const deleteSession = async (req, res) => {
+  try {
+    const authId = getAuthId(req);
+    const { sessionId } = req.params;
+
+    if (!authId) {
+      return res.status(401).json({ error: "UNAUTHORIZED" });
+    }
+
+    const result = await sessionsService.deleteSession(sessionId, authId);
 
     if (result?.error) {
       const status = result.status || 400;
