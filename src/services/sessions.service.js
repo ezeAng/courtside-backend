@@ -15,6 +15,11 @@ const ERROR_CODES = {
 const buildError = (code, status = 400) => ({ error: code, status });
 
 const parseBoolean = (value) => value === true || value === "true";
+const parseDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : value;
+};
 
 export const createSession = async (sessionInput, hostAuthId) => {
   const requiredFields = [
@@ -167,6 +172,51 @@ export const listSessions = async (filters, requesterAuthId) => {
   if (joinedByMe) filtersApplied.joined_by_me = true;
 
   return { filters_applied: filtersApplied, sessions };
+};
+
+export const listMySessions = async (filters, requesterAuthId) => {
+  const includeCancelled = parseBoolean(filters.include_cancelled);
+  const fromDate = parseDate(filters.from_date);
+  const toDate = parseDate(filters.to_date);
+
+  if (!requesterAuthId) {
+    return buildError(ERROR_CODES.UNAUTHORIZED, 401);
+  }
+
+  let query = supabase
+    .from("sessions")
+    .select("*, joined_count:session_participants(count)")
+    .order("session_date", { ascending: true })
+    .order("session_time", { ascending: true });
+
+  const involvementFilter = `host_auth_id.eq.${requesterAuthId},session_participants.user_auth_id.eq.${requesterAuthId}`;
+
+  query = query.or(involvementFilter, { referencedTable: "session_participants" });
+
+  if (!includeCancelled) {
+    query = query.neq("status", "cancelled");
+  }
+
+  if (fromDate) {
+    query = query.gte("session_date", fromDate);
+  }
+
+  if (toDate) {
+    query = query.lte("session_date", toDate);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    return { error: error.message, status: 400 };
+  }
+
+  const sessions = (data || []).map(({ joined_count, ...session }) => ({
+    ...session,
+    joined_count: typeof joined_count === "number" ? joined_count : joined_count?.[0]?.count ?? 0,
+  }));
+
+  return { sessions };
 };
 
 export const getSessionDetails = async (sessionId, requesterAuthId) => {
