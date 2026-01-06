@@ -3,6 +3,7 @@ import { requireAuth } from "../middleware/auth.js";
 import {
   createSession,
   listSessions,
+  listMine,
   getSessionById,
   joinSession,
   leaveSession,
@@ -15,6 +16,7 @@ const router = Router();
 
 router.post("/sessions", requireAuth, createSession);
 router.get("/sessions", requireAuth, listSessions);
+router.get("/sessions/mine", requireAuth, listMine);
 router.get("/sessions/:sessionId", requireAuth, getSessionById);
 router.put("/sessions/:sessionId", requireAuth, updateSession);
 router.post("/sessions/:sessionId/join", requireAuth, joinSession);
