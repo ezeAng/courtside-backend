@@ -103,6 +103,27 @@ export const listMine = async (req, res) => {
   }
 };
 
+export const listUpcomingReminders = async (req, res) => {
+  try {
+    const authId = getAuthId(req);
+
+    if (!authId) {
+      return res.status(401).json({ error: "UNAUTHORIZED" });
+    }
+
+    const result = await sessionsService.listUpcomingReminders(req.query || {}, authId);
+
+    if (result?.error) {
+      const status = result.status || 400;
+      return res.status(status).json({ error: result.error });
+    }
+
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 export const getSessionById = async (req, res) => {
   try {
     const authId = getAuthId(req);
