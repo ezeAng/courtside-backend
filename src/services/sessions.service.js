@@ -319,6 +319,41 @@ export const listMySessions = async (filters, requesterAuthId) => {
   return { sessions };
 };
 
+export const listUpcomingReminders = async (filters, requesterAuthId) => {
+  if (!requesterAuthId) {
+    return buildError(ERROR_CODES.UNAUTHORIZED, 401);
+  }
+
+  const limit = parseLimit(filters.limit, 2, 10);
+  const today = new Date().toISOString().slice(0, 10);
+
+  let query = supabase
+    .from("sessions")
+    .select("*, joined_count:session_participants(count)")
+    .order("session_date", { ascending: true })
+    .order("session_time", { ascending: true })
+    .limit(limit);
+
+  const involvementFilter = `host_auth_id.eq.${requesterAuthId},session_participants.user_auth_id.eq.${requesterAuthId}`;
+
+  query = query.or(involvementFilter, { referencedTable: "session_participants" });
+  query = query.neq("status", "cancelled");
+  query = query.gte("session_date", today);
+
+  const { data, error } = await query;
+
+  if (error) {
+    return { error: error.message, status: 400 };
+  }
+
+  const reminders = (data || []).map(({ joined_count, ...session }) => ({
+    ...session,
+    joined_count: typeof joined_count === "number" ? joined_count : joined_count?.[0]?.count ?? 0,
+  }));
+
+  return { reminders, limit };
+};
+
 export const getSessionDetails = async (sessionId, requesterAuthId) => {
   const { data: session, error: sessionError } = await supabase
     .from("sessions")

@@ -5,6 +5,7 @@ import {
   listSessions,
   listSuggested,
   listMine,
+  listUpcomingReminders,
   getSessionById,
   joinSession,
   leaveSession,
@@ -19,6 +20,7 @@ router.post("/sessions", requireAuth, createSession);
 router.get("/sessions", requireAuth, listSessions);
 router.get("/sessions/suggested", requireAuth, listSuggested);
 router.get("/sessions/mine", requireAuth, listMine);
+router.get("/sessions/reminders/upcoming", requireAuth, listUpcomingReminders);
 router.get("/sessions/:sessionId", requireAuth, getSessionById);
 router.put("/sessions/:sessionId", requireAuth, updateSession);
 router.post("/sessions/:sessionId/join", requireAuth, joinSession);
