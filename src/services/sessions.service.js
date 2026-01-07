@@ -20,6 +20,11 @@ const parseDate = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : value;
 };
+const parseLimit = (value, defaultValue = 5, maxValue = 10) => {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) return defaultValue;
+  return Math.min(Math.max(parsed, 1), maxValue);
+};
 
 export const createSession = async (sessionInput, hostAuthId) => {
   const requiredFields = [
@@ -172,6 +177,101 @@ export const listSessions = async (filters, requesterAuthId) => {
   if (joinedByMe) filtersApplied.joined_by_me = true;
 
   return { filters_applied: filtersApplied, sessions };
+};
+
+export const listSuggestedSessions = async (filters, requesterAuthId) => {
+  if (!requesterAuthId) {
+    return buildError(ERROR_CODES.UNAUTHORIZED, 401);
+  }
+
+  const limit = parseLimit(filters.limit);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data: userContext, error: userError } = await supabase
+    .from("users")
+    .select("overall_elo")
+    .eq("auth_id", requesterAuthId)
+    .maybeSingle();
+
+  if (userError) {
+    return { error: userError.message, status: 400 };
+  }
+
+  const { data: sessionsData, error: sessionsError } = await supabase
+    .from("sessions")
+    .select("*, session_participants(user_auth_id)")
+    .eq("is_public", true)
+    .eq("status", "open")
+    .gte("session_date", today)
+    .order("session_date", { ascending: true })
+    .order("session_time", { ascending: true });
+
+  if (sessionsError) {
+    return { error: sessionsError.message, status: 400 };
+  }
+
+  const overallElo = userContext?.overall_elo ?? null;
+
+  const eligibleSessions = (sessionsData || [])
+    .map(({ session_participants, ...session }) => {
+      const participants = session_participants || [];
+      return {
+        ...session,
+        joined_count: participants.length,
+        _participant_auth_ids: participants.map((participant) => participant.user_auth_id),
+      };
+    })
+    .filter((session) => {
+      if (session._participant_auth_ids.includes(requesterAuthId)) {
+        return false;
+      }
+      if (typeof session.capacity === "number" && session.joined_count >= session.capacity) {
+        return false;
+      }
+      if (overallElo === null || overallElo === undefined) {
+        return session.min_elo === null && session.max_elo === null;
+      }
+      const minOk = session.min_elo === null || session.min_elo === undefined || session.min_elo <= overallElo;
+      const maxOk = session.max_elo === null || session.max_elo === undefined || session.max_elo >= overallElo;
+      return minOk && maxOk;
+    });
+
+  const sortedSessions = eligibleSessions.sort((a, b) => {
+    const aDateTime = `${a.session_date ?? ""}T${a.session_time ?? ""}`;
+    const bDateTime = `${b.session_date ?? ""}T${b.session_time ?? ""}`;
+    if (aDateTime < bDateTime) return -1;
+    if (aDateTime > bDateTime) return 1;
+
+    const aHasRange = a.min_elo !== null && a.min_elo !== undefined && a.max_elo !== null && a.max_elo !== undefined;
+    const bHasRange = b.min_elo !== null && b.min_elo !== undefined && b.max_elo !== null && b.max_elo !== undefined;
+    if (aHasRange !== bHasRange) return aHasRange ? -1 : 1;
+
+    const aRange = (a.max_elo ?? 99999) - (a.min_elo ?? 0);
+    const bRange = (b.max_elo ?? 99999) - (b.min_elo ?? 0);
+    if (aRange !== bRange) return aRange - bRange;
+
+    const aRemaining = (a.capacity ?? 0) - a.joined_count;
+    const bRemaining = (b.capacity ?? 0) - b.joined_count;
+    return aRemaining - bRemaining;
+  });
+
+  const suggested_sessions = sortedSessions.slice(0, limit).map(({ _participant_auth_ids, ...session }) => ({
+    id: session.id,
+    title: session.title,
+    format: session.format,
+    session_date: session.session_date,
+    session_time: session.session_time,
+    venue_name: session.venue_name,
+    hall: session.hall,
+    court_number: session.court_number,
+    capacity: session.capacity,
+    joined_count: session.joined_count,
+    min_elo: session.min_elo,
+    max_elo: session.max_elo,
+    host_auth_id: session.host_auth_id,
+  }));
+
+  return { suggested_sessions };
 };
 
 export const listMySessions = async (filters, requesterAuthId) => {
