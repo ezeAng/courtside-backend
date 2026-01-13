@@ -84,6 +84,10 @@ export const listSessions = async (filters, requesterAuthId) => {
   const joinedByMe = parseBoolean(filters.joined_by_me);
   const availableOnly = parseBoolean(filters.available_only);
 
+  // Normalize date filter parameters to support both formats
+  const fromDate = filters.from_date || filters.date_from;
+  const toDate = filters.to_date || filters.date_to;
+
   const query = supabase
     .from("sessions")
     .select("*, session_participants:session_participants(user_auth_id)")
@@ -96,8 +100,12 @@ export const listSessions = async (filters, requesterAuthId) => {
     query.eq("session_date", filters.date);
   }
 
-  if (filters.from_date && filters.to_date) {
-    query.gte("session_date", filters.from_date).lte("session_date", filters.to_date);
+  if (fromDate && toDate) {
+    query.gte("session_date", fromDate).lte("session_date", toDate);
+  } else if (fromDate) {
+    query.gte("session_date", fromDate);
+  } else if (toDate) {
+    query.lte("session_date", toDate);
   }
 
   if (filters.format) {
@@ -163,9 +171,13 @@ export const listSessions = async (filters, requesterAuthId) => {
   const filtersApplied = {};
 
   if (filters.date) filtersApplied.date = filters.date;
-  if (filters.from_date && filters.to_date) {
-    filtersApplied.from_date = filters.from_date;
-    filtersApplied.to_date = filters.to_date;
+  if (fromDate && toDate) {
+    filtersApplied.from_date = fromDate;
+    filtersApplied.to_date = toDate;
+  } else if (fromDate) {
+    filtersApplied.from_date = fromDate;
+  } else if (toDate) {
+    filtersApplied.to_date = toDate;
   }
   if (filters.format) filtersApplied.format = filters.format;
   if (filters.venue) filtersApplied.venue = filters.venue;
