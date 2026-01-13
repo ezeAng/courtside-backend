@@ -112,6 +112,21 @@ export const signup = async (email, username, password, gender, seedEloInput) =>
 
   if (insertError) return { error: insertError.message };
 
+  // Attempt to explicitly send a confirmation email. Wrap in a try/catch and log
+  // so that any failure here does not break the signup flow.
+  try {
+    const { error: resendError } = await supabaseAdmin.auth.resend({
+      type: "signup",
+      email: normalizedEmail,
+    });
+
+    if (resendError) {
+      console.error("Failed to resend confirmation email after signup:", resendError);
+    }
+  } catch (err) {
+    console.error("Error resending confirmation email after signup:", err);
+  }
+
   return {
     message: "Signup successful",
     user: userRow,
