@@ -151,9 +151,28 @@ export const login = async (identifier, password) => {
 
   if (error) return { error: error.message };
 
+  const authId = data?.user?.id || data?.session?.user?.id;
+
+  if (!authId) {
+    return { error: "Login failed to resolve user profile" };
+  }
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("users")
+    .select(
+      "auth_id, username, gender, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo, is_profile_private, share_contact_with_connections, country_code, phone_number, contact_email, membership_tier, is_premium"
+    )
+    .eq("auth_id", authId)
+    .single();
+
+  if (profileError) {
+    return { error: profileError.message };
+  }
+
   return {
     message: "Login successful",
     session: data.session,
+    profile,
   };
 };
 
