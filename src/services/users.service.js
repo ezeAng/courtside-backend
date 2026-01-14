@@ -84,7 +84,7 @@ export const getProfile = async (auth_id) => {
   const { data, error } = await supabase
     .from("users")
     .select(
-      "auth_id, username, gender, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo, is_profile_private, share_contact_with_connections, country_code, phone_number, contact_email"
+      "auth_id, username, gender, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo, is_profile_private, share_contact_with_connections, country_code, phone_number, contact_email, membership_tier, is_premium"
     )
     .eq("auth_id", auth_id)
     .single();
@@ -181,7 +181,7 @@ export const getUserProfileWithStats = async (username) => {
   const { data: user, error: userError } = await supabase
     .from("users")
     .select(
-      "auth_id, username, gender, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo"
+      "auth_id, username, gender, region, address, bio, profile_image_url, singles_elo, doubles_elo, overall_elo, membership_tier, is_premium"
     )
     .eq("username", normalizedUsername)
     .maybeSingle();

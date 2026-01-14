@@ -236,7 +236,7 @@ export const getCardData = async (req, res) => {
     const { data: user, error: userErr } = await supabase
       .from("users")
       .select(
-        "username, gender, region, bio, profile_image_url, singles_elo, doubles_elo, overall_elo"
+        "username, gender, region, bio, profile_image_url, singles_elo, doubles_elo, overall_elo, membership_tier, is_premium"
       )
       .eq("auth_id", targetAuthId)
       .single();
@@ -310,6 +310,8 @@ export const getCardData = async (req, res) => {
         singles_elo: user.singles_elo,
         doubles_elo: user.doubles_elo,
         overall_elo: user.overall_elo,
+        membership_tier: user.membership_tier,
+        is_premium: user.is_premium,
         tier,
         star_rating,
         win_rate_last_10: winRate ?? 0,
