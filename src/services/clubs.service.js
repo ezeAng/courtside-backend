@@ -106,7 +106,7 @@ export const createClub = async (authId, payload) => {
     return buildError(ERROR_CODES.PREMIUM_REQUIRED, 403);
   }
 
-  const params = {
+  const { data, error } = await supabase.rpc("create_club_with_admin", {
     p_name: payload?.name,
     p_description: payload?.description,
     p_emblem_url: payload?.emblem_url,
@@ -115,9 +115,7 @@ export const createClub = async (authId, payload) => {
     p_playing_cadence: payload?.playing_cadence,
     p_usual_venues: payload?.usual_venues,
     p_contact_info: payload?.contact_info,
-  };
-
-  const { data, error } = await supabase.rpc("create_club_with_admin", params);
+  });
 
   if (error) {
     return { error: error.message, status: 400 };
