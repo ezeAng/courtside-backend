@@ -16,6 +16,8 @@ import {
   removeClubMember,
   createClubSession,
   listClubSessions,
+  updateClubSession,
+  cancelClubSession,
   getClubLeague,
 } from "../controllers/clubs.controller.js";
 
@@ -38,6 +40,8 @@ router.post("/clubs/:clubId/members/:userId/remove", requireAuth, removeClubMemb
 
 router.post("/clubs/:clubId/sessions", requireAuth, createClubSession);
 router.get("/clubs/:clubId/sessions", requireAuth, listClubSessions);
+router.put("/clubs/:clubId/sessions/:sessionId", requireAuth, updateClubSession);
+router.post("/clubs/:clubId/sessions/:sessionId/cancel", requireAuth, cancelClubSession);
 router.get("/clubs/:clubId/league", requireAuth, getClubLeague);
 
 export default router;

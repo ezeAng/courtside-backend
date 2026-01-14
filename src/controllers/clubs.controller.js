@@ -11,7 +11,7 @@ export const createClub = async (req, res) => {
       return res.status(401).json({ error: "UNAUTHORIZED" });
     }
 
-    const result = await clubsService.createClub(authId, req.body || {});
+    const result = await clubsService.createClub(authId, req.body || {}, req.accessToken);
 
     if (result?.error) {
       return res.status(result.status || 400).json({ error: result.error });
@@ -66,6 +66,50 @@ export const getClubById = async (req, res) => {
   }
 };
 
+export const updateClubSession = async (req, res) => {
+  try {
+    const authId = getAuthId(req);
+
+    if (!authId) {
+      return res.status(401).json({ error: "UNAUTHORIZED" });
+    }
+
+    const result = await clubSessionsService.updateClubSession(
+      req.params.sessionId,
+      authId,
+      req.body || {}
+    );
+
+    if (result?.error) {
+      return res.status(result.status || 400).json({ error: result.error });
+    }
+
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const cancelClubSession = async (req, res) => {
+  try {
+    const authId = getAuthId(req);
+
+    if (!authId) {
+      return res.status(401).json({ error: "UNAUTHORIZED" });
+    }
+
+    const result = await clubSessionsService.cancelClubSession(req.params.sessionId, authId);
+
+    if (result?.error) {
+      return res.status(result.status || 400).json({ error: result.error });
+    }
+
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 export const updateClub = async (req, res) => {
   try {
     const authId = getAuthId(req);
@@ -109,7 +153,7 @@ export const deleteClub = async (req, res) => {
 export const joinClub = async (req, res) => {
   try {
     const authId = getAuthId(req);
-    const result = await clubsService.requestOrJoinClub(req.params.clubId, authId);
+    const result = await clubsService.requestOrJoinClub(req.params.clubId, authId, req.accessToken);
 
     if (result?.error) {
       return res.status(result.status || 400).json({ error: result.error });
@@ -171,7 +215,7 @@ export const approveClubMember = async (req, res) => {
     const authId = getAuthId(req);
     const { clubId, userId } = req.params;
 
-    const result = await clubsService.approveClubMember(clubId, userId, authId);
+    const result = await clubsService.approveClubMember(clubId, userId, authId, req.accessToken);
 
     if (result?.error) {
       return res.status(result.status || 400).json({ error: result.error });

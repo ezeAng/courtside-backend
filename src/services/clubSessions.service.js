@@ -72,6 +72,38 @@ const ensureClubActive = async (clubId) => {
   return club;
 };
 
+const toDatePart = (value) => {
+  if (!value) return null;
+  if (typeof value === "string") {
+    if (value.includes("T")) {
+      return value.split("T")[0];
+    }
+    if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return value;
+    }
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+};
+
+const toTimePart = (value) => {
+  if (!value) return null;
+  if (typeof value === "string") {
+    if (value.includes("T")) {
+      const timePart = value.split("T")[1];
+      if (!timePart) return null;
+      return timePart.replace("Z", "").split(".")[0];
+    }
+    if (value.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
+      return value.length === 5 ? `${value}:00` : value;
+    }
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(11, 19);
+};
+
 export const createClubSession = async (clubId, authId, payload) => {
   if (!authId) {
     return buildError(ERROR_CODES.UNAUTHORIZED, 401);
@@ -92,13 +124,21 @@ export const createClubSession = async (clubId, authId, payload) => {
   const sessionData = {
     club_id: clubId,
     source: "club_created",
-    session_type: payload?.session_type,
+    session_type: "club",
     title: payload?.title,
-    start_time: payload?.start_time,
-    end_time: payload?.end_time,
-    venue: payload?.venue,
+    description: payload?.description ?? null,
+    format: payload?.format ?? null,
+    is_public: payload?.is_public ?? true,
+    session_date: payload?.session_date ?? toDatePart(payload?.start_time),
+    session_time: payload?.session_time ?? toTimePart(payload?.start_time),
+    session_end_time: payload?.session_end_time ?? toTimePart(payload?.end_time),
+    venue_name: payload?.venue_name ?? payload?.venue ?? null,
+    hall: payload?.hall ?? null,
+    court_number: payload?.court_number ?? null,
+    min_elo: payload?.min_elo ?? null,
+    max_elo: payload?.max_elo ?? null,
     capacity: payload?.capacity,
-    status: "scheduled",
+    status: "open",
     host_auth_id: authId,
   };
 
@@ -134,10 +174,13 @@ export const listClubSessions = async (clubId, authId) => {
 
   const { data, error } = await supabase
     .from("sessions")
-    .select("id, title, start_time, end_time, venue, capacity, session_type, status, club_id")
+    .select(
+      "id, title, description, is_public, format, capacity, session_date, session_time, session_end_time, venue_name, hall, court_number, min_elo, max_elo, status, session_type, club_id, source"
+    )
     .eq("club_id", clubId)
     .eq("source", "club_created")
-    .order("start_time", { ascending: true });
+    .order("session_date", { ascending: true })
+    .order("session_time", { ascending: true });
 
   if (error) {
     return { error: error.message, status: 400 };
@@ -178,12 +221,52 @@ export const updateClubSession = async (sessionId, authId, updates) => {
     return buildError(access.error, access.status);
   }
 
-  const allowedFields = ["title", "start_time", "end_time", "venue", "capacity", "session_type"];
+  const fieldMap = {
+    title: "title",
+    description: "description",
+    format: "format",
+    is_public: "is_public",
+    capacity: "capacity",
+    session_date: "session_date",
+    session_time: "session_time",
+    session_end_time: "session_end_time",
+    venue_name: "venue_name",
+    hall: "hall",
+    court_number: "court_number",
+    min_elo: "min_elo",
+    max_elo: "max_elo",
+    start_time: "start_time",
+    end_time: "end_time",
+    venue: "venue",
+  };
 
   const updateData = Object.entries(updates || {}).reduce((acc, [key, value]) => {
-    if (allowedFields.includes(key) && value !== undefined) {
-      acc[key] = value;
+    if (value === undefined) return acc;
+
+    if (key === "start_time") {
+      const datePart = toDatePart(value);
+      const timePart = toTimePart(value);
+      if (datePart) acc.session_date = datePart;
+      if (timePart) acc.session_time = timePart;
+      return acc;
     }
+
+    if (key === "end_time") {
+      const timePart = toTimePart(value);
+      if (timePart) acc.session_end_time = timePart;
+      return acc;
+    }
+
+    if (key === "venue") {
+      acc.venue_name = value;
+      return acc;
+    }
+
+    const mapped = fieldMap[key];
+    if (mapped) {
+      acc[mapped] = value;
+    }
+
     return acc;
   }, {});
 

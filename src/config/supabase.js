@@ -37,3 +37,13 @@ export const supabaseClient = createClient(
 );
 
 export const supabase = supabaseAdmin;
+
+export const getSupabaseUserClient = (accessToken) =>
+  createClient(supabaseUrl, supabaseAnonKey, {
+    ...supabaseClientOptions,
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  });

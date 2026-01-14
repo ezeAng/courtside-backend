@@ -1,4 +1,4 @@
-import { supabase } from "../config/supabase.js";
+import { getSupabaseUserClient, supabase } from "../config/supabase.js";
 
 const ERROR_CODES = {
   CLUB_NOT_FOUND: "CLUB_NOT_FOUND",
@@ -95,7 +95,7 @@ const getPremiumStatus = async (authId) => {
   return data || null;
 };
 
-export const createClub = async (authId, payload) => {
+export const createClub = async (authId, payload, accessToken) => {
   if (!authId) {
     return buildError(ERROR_CODES.UNAUTHORIZED, 401);
   }
@@ -106,22 +106,46 @@ export const createClub = async (authId, payload) => {
     return buildError(ERROR_CODES.PREMIUM_REQUIRED, 403);
   }
 
-  const { data, error } = await supabase.rpc("create_club_with_admin", {
-    p_name: payload?.name,
-    p_description: payload?.description,
-    p_emblem_url: payload?.emblem_url,
-    p_visibility: payload?.visibility,
-    p_max_members: payload?.max_members ?? null,
-    p_playing_cadence: payload?.playing_cadence,
-    p_usual_venues: payload?.usual_venues,
-    p_contact_info: payload?.contact_info,
+  if (!accessToken) {
+    return buildError(ERROR_CODES.UNAUTHORIZED, 401);
+  }
+
+  const userClient = getSupabaseUserClient(accessToken);
+  const { data, error } = await userClient.rpc("create_club_with_admin", {
+    p_name: payload?.p_name,
+    p_description: payload?.p_description,
+    p_emblem_url: payload?.p_emblem_url,
+    p_visibility: payload?.p_visibility,
+    p_max_members: payload?.p_max_members ?? null,
+    p_playing_cadence: payload?.p_playing_cadence,
+    p_usual_venues: payload?.p_usual_venues,
+    p_contact_info: payload?.p_contact_info,
   });
 
   if (error) {
+    console.log(error)
     return { error: error.message, status: 400 };
   }
 
-  return { club_id: data };
+  const clubId = data;
+
+  const membership = await getMembership(clubId, authId);
+  if (!membership) {
+    const { error: membershipError } = await userClient.from("club_memberships").insert({
+      club_id: clubId,
+      user_id: authId,
+      role: "core_admin",
+      status: "active",
+      approved_at: new Date().toISOString(),
+      approved_by: authId,
+    });
+
+    if (membershipError) {
+      return { error: membershipError.message, status: 400 };
+    }
+  }
+
+  return { club_id: clubId };
 };
 
 export const listPublicClubs = async () => {
@@ -291,12 +315,17 @@ export const deleteClub = async (clubId, authId) => {
   return { success: true };
 };
 
-export const requestOrJoinClub = async (clubId, authId) => {
+export const requestOrJoinClub = async (clubId, authId, accessToken) => {
   if (!authId) {
     return buildError(ERROR_CODES.UNAUTHORIZED, 401);
   }
 
-  const { data, error } = await supabase.rpc("request_or_join_club", { p_club_id: clubId });
+  if (!accessToken) {
+    return buildError(ERROR_CODES.UNAUTHORIZED, 401);
+  }
+
+  const userClient = getSupabaseUserClient(accessToken);
+  const { data, error } = await userClient.rpc("request_or_join_club", { p_club_id: clubId });
 
   if (error) {
     return { error: error.message, status: 400 };
@@ -422,14 +451,19 @@ export const listClubRequests = async (clubId, authId) => {
   return { requests };
 };
 
-export const approveClubMember = async (clubId, userId, authId) => {
+export const approveClubMember = async (clubId, userId, authId, accessToken) => {
   const access = await requireActiveAdmin(clubId, authId);
 
   if (!access.allowed) {
     return buildError(access.error, access.status);
   }
 
-  const { error } = await supabase.rpc("approve_club_member", {
+  if (!accessToken) {
+    return buildError(ERROR_CODES.UNAUTHORIZED, 401);
+  }
+
+  const userClient = getSupabaseUserClient(accessToken);
+  const { error } = await userClient.rpc("approve_club_member", {
     p_club_id: clubId,
     p_user_id: userId,
   });
