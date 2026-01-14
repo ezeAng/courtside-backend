@@ -72,7 +72,7 @@ export const createSession = async (sessionInput, hostAuthId) => {
   });
 
   if (participantError) {
-    await supabase.from("sessions").delete().eq("id", sessionId);
+    await supabase.from("sessions").update({ status: "cancelled" }).eq("id", sessionId);
     return { error: participantError.message || "Failed to add host to participants", status: 400 };
   }
 
@@ -511,7 +511,7 @@ export const joinSession = async (sessionId, userAuthId) => {
 export const updateSession = async (sessionId, hostAuthId, updates) => {
   const { data: session, error: sessionError } = await supabase
     .from("sessions")
-    .select("host_auth_id")
+    .select("host_auth_id, source, club_id")
     .eq("id", sessionId)
     .maybeSingle();
 
@@ -522,6 +522,49 @@ export const updateSession = async (sessionId, hostAuthId, updates) => {
 
   if (!session) {
     return buildError(ERROR_CODES.SESSION_NOT_FOUND, 404);
+  }
+
+  if (session.source === "club_created") {
+    const { data: membership, error: membershipError } = await supabase
+      .from("club_memberships")
+      .select("role, status")
+      .eq("club_id", session.club_id)
+      .eq("user_auth_id", hostAuthId)
+      .maybeSingle();
+
+    if (membershipError && membershipError.code !== "PGRST116") {
+      return { error: membershipError.message, status: 400 };
+    }
+
+    const isAdmin = membership?.status === "active" && ["admin", "core_admin"].includes(membership.role);
+
+    if (!isAdmin) {
+      return buildError(ERROR_CODES.NOT_HOST, 403);
+    }
+
+    const allowedFields = ["title", "start_time", "end_time", "venue", "capacity", "session_type"];
+
+    const updateData = Object.entries(updates || {}).reduce((acc, [key, value]) => {
+      if (allowedFields.includes(key) && value !== undefined) {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+
+    if (Object.keys(updateData).length === 0) {
+      return buildError(ERROR_CODES.INVALID_UPDATES, 400);
+    }
+
+    const { error: updateError } = await supabase
+      .from("sessions")
+      .update(updateData)
+      .eq("id", sessionId);
+
+    if (updateError) {
+      return { error: updateError.message, status: 400 };
+    }
+
+    return { success: true };
   }
 
   if (session.host_auth_id !== hostAuthId) {
@@ -675,7 +718,7 @@ export const cancelSession = async (sessionId, hostAuthId) => {
 export const deleteSession = async (sessionId, hostAuthId) => {
   const { data: session, error: sessionError } = await supabase
     .from("sessions")
-    .select("host_auth_id")
+    .select("host_auth_id, source, club_id")
     .eq("id", sessionId)
     .maybeSingle();
 
@@ -688,23 +731,47 @@ export const deleteSession = async (sessionId, hostAuthId) => {
     return buildError(ERROR_CODES.SESSION_NOT_FOUND, 404);
   }
 
+  if (session.source === "club_created") {
+    const { data: membership, error: membershipError } = await supabase
+      .from("club_memberships")
+      .select("role, status")
+      .eq("club_id", session.club_id)
+      .eq("user_auth_id", hostAuthId)
+      .maybeSingle();
+
+    if (membershipError && membershipError.code !== "PGRST116") {
+      return { error: membershipError.message, status: 400 };
+    }
+
+    const isAdmin = membership?.status === "active" && ["admin", "core_admin"].includes(membership.role);
+
+    if (!isAdmin) {
+      return buildError(ERROR_CODES.NOT_HOST, 403);
+    }
+
+    const { error: updateError } = await supabase
+      .from("sessions")
+      .update({ status: "cancelled" })
+      .eq("id", sessionId);
+
+    if (updateError) {
+      return { error: updateError.message, status: 400 };
+    }
+
+    return { success: true };
+  }
+
   if (session.host_auth_id !== hostAuthId) {
     return buildError(ERROR_CODES.NOT_HOST, 403);
   }
 
-  const { error: participantsError } = await supabase
-    .from("session_participants")
-    .delete()
-    .eq("session_id", sessionId);
+  const { error: updateError } = await supabase
+    .from("sessions")
+    .update({ status: "cancelled" })
+    .eq("id", sessionId);
 
-  if (participantsError) {
-    return { error: participantsError.message, status: 400 };
-  }
-
-  const { error: deleteError } = await supabase.from("sessions").delete().eq("id", sessionId);
-
-  if (deleteError) {
-    return { error: deleteError.message, status: 400 };
+  if (updateError) {
+    return { error: updateError.message, status: 400 };
   }
 
   return { success: true };
