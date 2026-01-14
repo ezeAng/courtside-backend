@@ -529,7 +529,7 @@ export const updateSession = async (sessionId, hostAuthId, updates) => {
       .from("club_memberships")
       .select("role, status")
       .eq("club_id", session.club_id)
-      .eq("user_auth_id", hostAuthId)
+      .eq("user_id", hostAuthId)
       .maybeSingle();
 
     if (membershipError && membershipError.code !== "PGRST116") {
@@ -736,7 +736,7 @@ export const deleteSession = async (sessionId, hostAuthId) => {
       .from("club_memberships")
       .select("role, status")
       .eq("club_id", session.club_id)
-      .eq("user_auth_id", hostAuthId)
+      .eq("user_id", hostAuthId)
       .maybeSingle();
 
     if (membershipError && membershipError.code !== "PGRST116") {

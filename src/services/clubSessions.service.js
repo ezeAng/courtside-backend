@@ -15,7 +15,7 @@ const getMembership = async (clubId, authId) => {
     .from("club_memberships")
     .select("role, status")
     .eq("club_id", clubId)
-    .eq("user_auth_id", authId)
+    .eq("user_id", authId)
     .maybeSingle();
 
   if (error && error.code !== "PGRST116") {

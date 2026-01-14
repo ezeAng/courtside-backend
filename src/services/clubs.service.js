@@ -19,7 +19,7 @@ const getMembership = async (clubId, authId) => {
     .from("club_memberships")
     .select("id, role, status")
     .eq("club_id", clubId)
-    .eq("user_auth_id", authId)
+    .eq("user_id", authId)
     .maybeSingle();
 
   if (error && error.code !== "PGRST116") {
@@ -178,10 +178,10 @@ export const searchClubs = async (query) => {
   const { data: clubs, error } = await supabase
     .from("clubs")
     .select(
-      "id, name, description, emblem_url, visibility, max_members, playing_cadence, usual_venues, contact_info, is_searchable, created_at"
+      "id, name, description, emblem_url, visibility, max_members, playing_cadence, usual_venues, contact_info, created_at"
     )
     .eq("is_active", true)
-    .or("visibility.eq.public,is_searchable.eq.true")
+    .eq("visibility", "public")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -361,7 +361,7 @@ export const listMyClubs = async (authId) => {
     .select(
       "club_id, role, status, clubs(id, name, description, emblem_url, visibility, playing_cadence, usual_venues, contact_info, is_active)"
     )
-    .eq("user_auth_id", authId)
+    .eq("user_id", authId)
     .eq("status", "active")
     .eq("clubs.is_active", true);
 
@@ -388,7 +388,7 @@ export const listClubRequests = async (clubId, authId) => {
 
   const { data, error } = await supabase
     .from("club_memberships")
-    .select("id, user_auth_id, role, status, created_at, users(auth_id, username, profile_image_url, overall_elo, region)")
+    .select("id, user_id, role, status, created_at")
     .eq("club_id", clubId)
     .eq("status", "requested")
     .order("created_at", { ascending: true });
@@ -397,7 +397,31 @@ export const listClubRequests = async (clubId, authId) => {
     return { error: error.message, status: 400 };
   }
 
-  return { requests: data || [] };
+  const userIds = (data || []).map((row) => row.user_id);
+  let usersById = new Map();
+
+  if (userIds.length > 0) {
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("auth_id, username, profile_image_url, overall_elo, region")
+      .in("auth_id", userIds);
+
+    if (usersError) {
+      return { error: usersError.message, status: 400 };
+    }
+
+    usersById = (users || []).reduce((acc, user) => {
+      acc.set(user.auth_id, user);
+      return acc;
+    }, new Map());
+  }
+
+  const requests = (data || []).map((row) => ({
+    ...row,
+    users: usersById.get(row.user_id) || null,
+  }));
+
+  return { requests };
 };
 
 export const approveClubMember = async (clubId, userId, authId) => {
@@ -430,7 +454,7 @@ export const rejectClubMember = async (clubId, userId, authId) => {
     .from("club_memberships")
     .select("id, status")
     .eq("club_id", clubId)
-    .eq("user_auth_id", userId)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (lookupError) {
@@ -471,7 +495,7 @@ export const removeClubMember = async (clubId, userId, authId) => {
     .from("club_memberships")
     .select("id, role")
     .eq("club_id", clubId)
-    .eq("user_auth_id", userId)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (lookupError) {
@@ -510,22 +534,36 @@ export const getClubLeague = async (clubId, authId) => {
 
   const { data, error } = await supabase
     .from("club_memberships")
-    .select("user_auth_id, users(auth_id, username, profile_image_url, overall_elo, gender, region)")
+    .select("user_id")
     .eq("club_id", clubId)
     .eq("status", "active")
-    .order("overall_elo", { foreignTable: "users", ascending: false });
+    .order("created_at", { ascending: true });
 
   if (error) {
     return { error: error.message, status: 400 };
   }
 
-  const leaderboard = (data || [])
-    .map((row) => row.users)
-    .filter(Boolean)
-    .map((user, index) => ({
-      ...user,
-      rank: index + 1,
-    }));
+  const userIds = (data || []).map((row) => row.user_id);
+  let users = [];
+
+  if (userIds.length > 0) {
+    const { data: usersData, error: usersError } = await supabase
+      .from("users")
+      .select("auth_id, username, profile_image_url, overall_elo, gender, region")
+      .in("auth_id", userIds)
+      .order("overall_elo", { ascending: false });
+
+    if (usersError) {
+      return { error: usersError.message, status: 400 };
+    }
+
+    users = usersData || [];
+  }
+
+  const leaderboard = users.map((user, index) => ({
+    ...user,
+    rank: index + 1,
+  }));
 
   return { club_id: clubId, leaderboard };
 };
