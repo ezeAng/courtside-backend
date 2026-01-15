@@ -46,12 +46,23 @@ export const createSession = async (sessionInput, hostAuthId) => {
     return { error: `Missing field: ${missingField}`, status: 400 };
   }
 
-  const sessionData = {
-    ...sessionInput,
-    host_auth_id: hostAuthId,
-    is_public: true,
-    status: "open",
-  };
+  const createFields = [
+    ...requiredFields,
+    "min_elo",
+    "max_elo",
+    "session_type",
+  ];
+
+  const sessionData = createFields.reduce((acc, field) => {
+    if (sessionInput?.[field] !== undefined) {
+      acc[field] = sessionInput[field];
+    }
+    return acc;
+  }, {});
+
+  sessionData.host_auth_id = hostAuthId;
+  sessionData.is_public = true;
+  sessionData.status = "open";
 
   const { data: insertedSession, error: insertError } = await supabase
     .from("sessions")
