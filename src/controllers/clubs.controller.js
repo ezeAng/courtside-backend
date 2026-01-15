@@ -1,5 +1,6 @@
 import * as clubsService from "../services/clubs.service.js";
 import * as clubSessionsService from "../services/clubSessions.service.js";
+import { parseMultipartForm } from "../utils/multipart.js";
 
 const getAuthId = (req) => req.authUser?.auth_id || req.authUser?.id || req.user?.auth_id;
 
@@ -11,10 +12,34 @@ export const createClub = async (req, res) => {
       return res.status(401).json({ error: "UNAUTHORIZED" });
     }
 
-    const result = await clubsService.createClub(authId, req.body || {}, req.accessToken);
+    const isMultipart = req.headers["content-type"]?.includes("multipart/form-data");
+    let payload = req.body || {};
+    let file = null;
+
+    if (isMultipart) {
+      const { fields, files } = await parseMultipartForm(req);
+      payload = fields || {};
+      file = files?.file || null;
+    }
+
+    const result = await clubsService.createClub(authId, payload, req.accessToken);
 
     if (result?.error) {
       return res.status(result.status || 400).json({ error: result.error });
+    }
+
+    if (file && result?.club_id) {
+      const uploadResult = await clubsService.updateClubEmblem(
+        result.club_id,
+        authId,
+        file
+      );
+
+      if (uploadResult?.error) {
+        return res.status(uploadResult.status || 400).json({ error: uploadResult.error });
+      }
+
+      return res.status(201).json({ ...result, emblem_url: uploadResult.emblem_url });
     }
 
     return res.status(201).json(result);
@@ -118,10 +143,42 @@ export const updateClub = async (req, res) => {
       return res.status(401).json({ error: "UNAUTHORIZED" });
     }
 
-    const result = await clubsService.updateClub(req.params.clubId, authId, req.body || {});
+    const isMultipart = req.headers["content-type"]?.includes("multipart/form-data");
+    let payload = req.body || {};
+    let file = null;
+
+    if (isMultipart) {
+      const { fields, files } = await parseMultipartForm(req);
+      payload = fields || {};
+      file = files?.file || null;
+    }
+
+    const hasPayloadUpdates = Object.keys(payload || {}).length > 0;
+
+    if (!hasPayloadUpdates && !file) {
+      return res.status(400).json({ error: "INVALID_UPDATES" });
+    }
+
+    const result = hasPayloadUpdates
+      ? await clubsService.updateClub(req.params.clubId, authId, payload)
+      : { success: true };
 
     if (result?.error) {
       return res.status(result.status || 400).json({ error: result.error });
+    }
+
+    if (file) {
+      const uploadResult = await clubsService.updateClubEmblem(
+        req.params.clubId,
+        authId,
+        file
+      );
+
+      if (uploadResult?.error) {
+        return res.status(uploadResult.status || 400).json({ error: uploadResult.error });
+      }
+
+      return res.json({ ...result, emblem_url: uploadResult.emblem_url });
     }
 
     return res.json(result);

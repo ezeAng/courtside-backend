@@ -112,14 +112,14 @@ export const createClub = async (authId, payload, accessToken) => {
 
   const userClient = getSupabaseUserClient(accessToken);
   const { data, error } = await userClient.rpc("create_club_with_admin", {
-    p_name: payload?.p_name,
-    p_description: payload?.p_description,
-    p_emblem_url: payload?.p_emblem_url,
-    p_visibility: payload?.p_visibility,
-    p_max_members: payload?.p_max_members ?? null,
-    p_playing_cadence: payload?.p_playing_cadence,
-    p_usual_venues: payload?.p_usual_venues,
-    p_contact_info: payload?.p_contact_info,
+    p_name: payload?.p_name ?? payload?.name,
+    p_description: payload?.p_description ?? payload?.description,
+    p_emblem_url: payload?.p_emblem_url ?? payload?.emblem_url,
+    p_visibility: payload?.p_visibility ?? payload?.visibility,
+    p_max_members: payload?.p_max_members ?? payload?.max_members ?? null,
+    p_playing_cadence: payload?.p_playing_cadence ?? payload?.playing_cadence,
+    p_usual_venues: payload?.p_usual_venues ?? payload?.usual_venues,
+    p_contact_info: payload?.p_contact_info ?? payload?.contact_info,
   });
 
   if (error) {
@@ -291,6 +291,50 @@ export const updateClub = async (clubId, authId, updates) => {
   }
 
   return { success: true };
+};
+
+export const updateClubEmblem = async (clubId, authId, file) => {
+  const club = await ensureClubActive(clubId);
+
+  if (!club) {
+    return buildError(ERROR_CODES.CLUB_NOT_FOUND, 404);
+  }
+
+  const access = await requireActiveAdmin(clubId, authId);
+
+  if (!access.allowed) {
+    return buildError(access.error, access.status);
+  }
+
+  const storagePath = `clubs/${clubId}.jpg`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("club-emblems")
+    .upload(storagePath, file.buffer, {
+      contentType: file.mimetype,
+      upsert: true,
+    });
+
+  if (uploadError) {
+    return { error: uploadError.message, status: 400 };
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from("club-emblems")
+    .getPublicUrl(storagePath);
+
+  const publicUrl = publicUrlData?.publicUrl;
+
+  const { error: updateError } = await supabase
+    .from("clubs")
+    .update({ emblem_url: publicUrl })
+    .eq("id", clubId);
+
+  if (updateError) {
+    return { error: updateError.message, status: 400 };
+  }
+
+  return { success: true, emblem_url: publicUrl };
 };
 
 export const deleteClub = async (clubId, authId) => {
