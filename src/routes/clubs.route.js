@@ -10,6 +10,7 @@ import {
   joinClub,
   leaveClub,
   listMyClubs,
+  listClubMembers,
   listClubRequests,
   approveClubMember,
   rejectClubMember,
@@ -33,6 +34,7 @@ router.delete("/clubs/:clubId", requireAuth, deleteClub);
 router.post("/clubs/:clubId/join", requireAuth, joinClub);
 router.post("/clubs/:clubId/leave", requireAuth, leaveClub);
 router.get("/me/clubs", requireAuth, listMyClubs);
+router.get("/clubs/:clubId/members", requireAuth, listClubMembers);
 router.get("/clubs/:clubId/requests", requireAuth, listClubRequests);
 router.post("/clubs/:clubId/members/:userId/approve", requireAuth, approveClubMember);
 router.post("/clubs/:clubId/members/:userId/reject", requireAuth, rejectClubMember);

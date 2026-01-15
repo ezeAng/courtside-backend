@@ -45,6 +45,16 @@ const requireActiveAdmin = async (clubId, authId) => {
   return { allowed: true, membership };
 };
 
+const requireActiveMember = async (clubId, authId) => {
+  const membership = await getMembership(clubId, authId);
+
+  if (!membership || membership.status !== "active") {
+    return { allowed: false, status: 403, error: ERROR_CODES.FORBIDDEN };
+  }
+
+  return { allowed: true, membership };
+};
+
 const requireCoreAdmin = async (clubId, authId) => {
   const membership = await getMembership(clubId, authId);
 
@@ -493,6 +503,57 @@ export const listClubRequests = async (clubId, authId) => {
   }));
 
   return { requests };
+};
+
+export const listClubMembers = async (clubId, authId) => {
+  const club = await ensureClubActive(clubId);
+
+  if (!club) {
+    return buildError(ERROR_CODES.CLUB_NOT_FOUND, 404);
+  }
+
+  const access = await requireActiveMember(clubId, authId);
+
+  if (!access.allowed) {
+    return buildError(access.error, access.status);
+  }
+
+  const { data, error } = await supabase
+    .from("club_memberships")
+    .select("id, user_id, role, status, created_at, approved_at, approved_by")
+    .eq("club_id", clubId)
+    .eq("status", "active")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    return { error: error.message, status: 400 };
+  }
+
+  const userIds = (data || []).map((row) => row.user_id);
+  let usersById = new Map();
+
+  if (userIds.length > 0) {
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("auth_id, username, profile_image_url, overall_elo, gender, region")
+      .in("auth_id", userIds);
+
+    if (usersError) {
+      return { error: usersError.message, status: 400 };
+    }
+
+    usersById = (users || []).reduce((acc, user) => {
+      acc.set(user.auth_id, user);
+      return acc;
+    }, new Map());
+  }
+
+  const members = (data || []).map((row) => ({
+    ...row,
+    users: usersById.get(row.user_id) || null,
+  }));
+
+  return { members };
 };
 
 export const approveClubMember = async (clubId, userId, authId, accessToken) => {

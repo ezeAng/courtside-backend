@@ -267,6 +267,21 @@ export const listClubRequests = async (req, res) => {
   }
 };
 
+export const listClubMembers = async (req, res) => {
+  try {
+    const authId = getAuthId(req);
+    const result = await clubsService.listClubMembers(req.params.clubId, authId);
+
+    if (result?.error) {
+      return res.status(result.status || 400).json({ error: result.error });
+    }
+
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 export const approveClubMember = async (req, res) => {
   try {
     const authId = getAuthId(req);
