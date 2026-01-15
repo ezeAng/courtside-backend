@@ -24,9 +24,7 @@ export const getContactDetailsForConnection = async (requesterAuthId, targetAuth
 
   const { data: targetUser, error: targetError } = await supabase
     .from("users")
-    .select(
-      "auth_id, phone_number, contact_email, is_profile_private, share_contact_with_connections"
-    )
+    .select("auth_id, phone_number, contact_email")
     .eq("auth_id", targetAuthId)
     .maybeSingle();
 
@@ -58,14 +56,6 @@ export const getContactDetailsForConnection = async (requesterAuthId, targetAuth
     return { error: "Forbidden", status: 403 };
   }
 
-  if (targetUser.is_profile_private) {
-    return { error: "Forbidden", status: 403 };
-  }
-
-  if (!targetUser.share_contact_with_connections) {
-    return { error: "Forbidden", status: 403 };
-  }
-
   const contact = {};
 
   if (targetUser.phone_number) {
@@ -90,6 +80,11 @@ export const getProfile = async (auth_id) => {
     .single();
 
   if (error) return { error: error.message };
+
+  if (data) {
+    data.is_profile_private = false;
+    data.share_contact_with_connections = true;
+  }
 
   return data;
 };
