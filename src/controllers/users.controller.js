@@ -119,11 +119,8 @@ export const updateProfile = async (req, res) => {
       bio,
       profile_image_url,
       gender,
-      is_profile_private,
       phone_number,
       contact_email,
-      share_contact_with_connections,
-      share_contact_with_connection,
       country_code,
     } = req.body || {};
 
@@ -139,18 +136,8 @@ export const updateProfile = async (req, res) => {
     assignIfDefined("bio", bio);
     assignIfDefined("profile_image_url", profile_image_url);
     assignIfDefined("gender", gender);
-    assignIfDefined("is_profile_private", is_profile_private);
     assignIfDefined("phone_number", phone_number);
     assignIfDefined("contact_email", contact_email);
-
-    const shareContactValue =
-      typeof share_contact_with_connection === "boolean"
-        ? share_contact_with_connection
-        : share_contact_with_connections;
-
-    if (typeof shareContactValue === "boolean") {
-      updateData.share_contact_with_connections = shareContactValue;
-    }
 
     if (country_code !== undefined && country_code !== null) {
       if (typeof country_code !== "string") {

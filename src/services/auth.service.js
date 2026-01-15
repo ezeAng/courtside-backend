@@ -105,6 +105,8 @@ export const signup = async (email, username, password, gender, seedEloInput) =>
         singles_elo: seedElo,
         doubles_elo: seedElo,
         overall_elo: seedElo,
+        is_profile_private: false,
+        share_contact_with_connections: true,
       },
     ])
     .select()
@@ -167,6 +169,11 @@ export const login = async (identifier, password) => {
 
   if (profileError) {
     return { error: profileError.message };
+  }
+
+  if (profile) {
+    profile.is_profile_private = false;
+    profile.share_contact_with_connections = true;
   }
 
   return {
