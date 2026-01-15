@@ -379,12 +379,15 @@ export const requestOrJoinClub = async (clubId, authId, accessToken) => {
   }
 
   const userClient = getSupabaseUserClient(accessToken);
+  console.log("[clubs][join] rpc request_or_join_club", { clubId, authId });
   const { data, error } = await userClient.rpc("request_or_join_club", { p_club_id: clubId });
 
   if (error) {
+    console.log("[clubs][join] rpc error", { clubId, authId, error: error.message });
     return { error: error.message, status: 400 };
   }
 
+  console.log("[clubs][join] rpc success", { clubId, authId, data });
   return data;
 };
 
@@ -394,6 +397,13 @@ export const leaveClub = async (clubId, authId) => {
   }
 
   const membership = await getMembership(clubId, authId);
+  console.log("[clubs][leave] membership lookup", {
+    clubId,
+    authId,
+    membershipId: membership?.id,
+    status: membership?.status,
+    role: membership?.role,
+  });
 
   if (!membership) {
     return buildError(ERROR_CODES.MEMBERSHIP_NOT_FOUND, 404);
@@ -426,9 +436,11 @@ export const leaveClub = async (clubId, authId) => {
     .eq("id", membership.id);
 
   if (error) {
+    console.log("[clubs][leave] update error", { clubId, authId, error: error.message });
     return { error: error.message, status: 400 };
   }
 
+  console.log("[clubs][leave] update success", { clubId, authId, membershipId: membership.id });
   return { success: true };
 };
 

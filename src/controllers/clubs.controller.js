@@ -210,14 +210,18 @@ export const deleteClub = async (req, res) => {
 export const joinClub = async (req, res) => {
   try {
     const authId = getAuthId(req);
+    console.log("[clubs][join] request", { clubId: req.params.clubId, authId });
     const result = await clubsService.requestOrJoinClub(req.params.clubId, authId, req.accessToken);
 
     if (result?.error) {
+      console.log("[clubs][join] error", { clubId: req.params.clubId, authId, error: result.error });
       return res.status(result.status || 400).json({ error: result.error });
     }
 
+    console.log("[clubs][join] success", { clubId: req.params.clubId, authId, result });
     return res.json(result);
   } catch (err) {
+    console.log("[clubs][join] exception", { clubId: req.params.clubId, error: err.message });
     return res.status(500).json({ error: err.message });
   }
 };
@@ -225,14 +229,18 @@ export const joinClub = async (req, res) => {
 export const leaveClub = async (req, res) => {
   try {
     const authId = getAuthId(req);
+    console.log("[clubs][leave] request", { clubId: req.params.clubId, authId });
     const result = await clubsService.leaveClub(req.params.clubId, authId);
 
     if (result?.error) {
+      console.log("[clubs][leave] error", { clubId: req.params.clubId, authId, error: result.error });
       return res.status(result.status || 400).json({ error: result.error });
     }
 
+    console.log("[clubs][leave] success", { clubId: req.params.clubId, authId });
     return res.json(result);
   } catch (err) {
+    console.log("[clubs][leave] exception", { clubId: req.params.clubId, error: err.message });
     return res.status(500).json({ error: err.message });
   }
 };
