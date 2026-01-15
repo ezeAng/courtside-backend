@@ -152,6 +152,17 @@ export const createClubSession = async (clubId, authId, payload) => {
     return { error: error.message, status: 400 };
   }
 
+  const { error: participantError } = await supabase.from("session_participants").insert({
+    session_id: data.id,
+    user_auth_id: authId,
+    joined_at: new Date().toISOString(),
+  });
+
+  if (participantError) {
+    await supabase.from("sessions").update({ status: "cancelled" }).eq("id", data.id);
+    return { error: participantError.message || "Failed to add host to participants", status: 400 };
+  }
+
   return { session_id: data.id };
 };
 
