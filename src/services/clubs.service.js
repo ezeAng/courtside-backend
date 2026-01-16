@@ -378,6 +378,59 @@ export const requestOrJoinClub = async (clubId, authId, accessToken) => {
     return buildError(ERROR_CODES.UNAUTHORIZED, 401);
   }
 
+  const membership = await getMembership(clubId, authId);
+
+  if (membership?.status === "left") {
+    const club = await ensureClubActive(clubId);
+
+    if (!club) {
+      return { error: "Club not found or inactive", status: 404 };
+    }
+
+    if (club.max_members != null) {
+      const { count, error } = await supabase
+        .from("club_memberships")
+        .select("id", { count: "exact", head: true })
+        .eq("club_id", clubId)
+        .eq("status", "active");
+
+      if (error) {
+        return { error: error.message, status: 400 };
+      }
+
+      if ((count || 0) >= club.max_members) {
+        return { error: "Club is full", status: 400 };
+      }
+    }
+
+    const now = new Date().toISOString();
+    const updatePayload =
+      club.visibility === "public"
+        ? {
+            status: "active",
+            approved_at: now,
+            approved_by: authId,
+            requested_at: null,
+          }
+        : {
+            status: "requested",
+            requested_at: now,
+            approved_at: null,
+            approved_by: null,
+          };
+
+    const { error } = await supabase
+      .from("club_memberships")
+      .update(updatePayload)
+      .eq("id", membership.id);
+
+    if (error) {
+      return { error: error.message, status: 400 };
+    }
+
+    return club.visibility === "public" ? "joined" : "requested";
+  }
+
   const userClient = getSupabaseUserClient(accessToken);
   console.log("[clubs][join] rpc request_or_join_club", { clubId, authId });
   const { data, error } = await userClient.rpc("request_or_join_club", { p_club_id: clubId });

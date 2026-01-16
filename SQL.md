@@ -145,6 +145,8 @@ declare
   v_visibility text;
   v_max_members int;
   v_active_count int;
+  v_membership_id uuid;
+  v_membership_status text;
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated';
@@ -161,14 +163,47 @@ begin
     raise exception 'Club not found or inactive';
   end if;
 
-  -- Prevent duplicate membership
-  if exists (
-    select 1
-    from public.club_memberships
-    where club_id = p_club_id
-      and user_id = auth.uid()
-  ) then
-    raise exception 'Already joined or requested';
+  select id, status
+  into v_membership_id, v_membership_status
+  from public.club_memberships
+  where club_id = p_club_id
+    and user_id = auth.uid();
+
+  if found then
+    if v_membership_status <> 'left' then
+      raise exception 'Already joined or requested';
+    end if;
+
+    -- Enforce max members (active only)
+    if v_max_members is not null then
+      select count(*)
+      into v_active_count
+      from public.club_memberships
+      where club_id = p_club_id
+        and status = 'active';
+
+      if v_active_count >= v_max_members then
+        raise exception 'Club is full';
+      end if;
+    end if;
+
+    if v_visibility = 'public' then
+      update public.club_memberships
+      set status = 'active',
+          approved_at = now(),
+          approved_by = auth.uid(),
+          requested_at = null
+      where id = v_membership_id;
+      return 'joined';
+    else
+      update public.club_memberships
+      set status = 'requested',
+          requested_at = now(),
+          approved_at = null,
+          approved_by = null
+      where id = v_membership_id;
+      return 'requested';
+    end if;
   end if;
 
   -- Enforce max members (active only)
